@@ -1,0 +1,1172 @@
+--[[CHANGELOG
+alpha 5.0.0 Added a start-UI + implemented open from pastebin function
+alpha 4.0.0 Did a bunch of debugging + implemented "run program"-function
+alpha 3.0.1 Did some code-cleanup
+alpha 3.0.0 Implemented Auto-Save + Load-function
+alpha 2.2.2 Implemented: Cut Line + Copy Line + Paste Line
+alpha 2.2.1 Did some more-fancy-graphics thingy
+alpha 2.2.0 Implemented pastebin-function + Did some code-cleanup
+alpha 2.1.1 Fixed GetTable Bug
+alpha 2.1.0 Implemented options menu + about function
+alpha 2.0.0 Improved CheckCursor function quite a bit + improved navigation
+alpha 1.2.2 Fixed bug with negative numbers in GoTo line function
+alpha 1.2.1 Implemented GoTo Line function to the Actions menu
+alpha 1.2.0 Implemented: Actions, options (partially)
+alpha 1.1.0 Added some functions
+alpha 1.0.0 First release
+]]
+
+
+-- VARIABLES --
+tArgs = {...}
+scm = {
+["uiback"] = 128;
+["uihigh"] = 256;
+["back"] = 32768;
+["txt"] = 1;
+["str"] = 1024;
+["fun"] = 512;
+["ste"] = 8;
+["cmt"] = 8192;
+["bartop"] = 128;
+["barbot"] = 128;
+["butop"] = 256;
+["bubot"] = 256;
+["buact"] = 8;
+["menu"] = 8;
+["menubut"] = 256;
+["menubut2"] = 128;
+["popup"] = 128;
+["ok"] = 8;
+["y"] = 32;
+["n"] = 16384;
+["err"] = 32768;
+["errtxt"] = 1
+}
+
+cfg = {
+["offtop"] = 1;
+["offbot"] = 1;
+["pos"] = 1;
+["cursor"] = 1;
+["line"] = 1;
+["linepos"] = 1;
+["caps"] = false;
+["lastev"] = "";
+["buffer"] = "";
+["autosv"] = 30;
+["tab"] = 2;
+["pgscroll"] = 10;
+["ver"] = "5.0.0 [alpha]";
+["fl"] = {
+["sys"] = "ldt/";
+["crash"] = "crash";
+["dmp"] = "dumps/";
+["scm"] = "schemes/";
+};
+["crash"] = "crash";
+["evhandle"] = {
+["autosv"] = 0;
+}
+}
+
+autocomp = {
+["("] = ")";
+["["] = "]";
+["{"] = "}";
+["\""] = "\"";
+["\'"] = "\'"
+}
+-- VARIABLES END --
+
+-- FUNCTIONS --
+function center(text, y)
+local x = math.floor((X-#text)/2)+1
+term.setCursorPos(x, y)
+write(text)
+end
+
+function fwrite(text, file, msg)
+local path =
+string.match(file, ".+/") or
+string.match(file, ".+\\")
+  if path ~= nil and fs.exists(path) == false then
+  fs.makeDir(path)
+  end
+  if not fs.isReadOnly(file) then
+  local f = fs.open(file, "w")
+    if f then
+      for _, v in pairs(text) do
+      f.write(tostring(v).."\n")
+      end
+    f.close()
+      if msg then
+      cfg.lastev = "Saved to "..file
+      end
+    else
+      if msg then
+      cfg.lastev = "Failed"
+      end
+    end
+  else
+    if msg then
+    cfg.lastev = "File ReadOnly"
+    end
+  end
+end
+
+function autosave(tp)
+  if tp == "sv" then
+  fwrite(text, cfg.fl.sys..cfg.fl.dmp..cfg.filenm..".dmp")
+  elseif tp == "del" then
+    if fs.exists(cfg.fl.sys..cfg.fl.dmp..cfg.filenm..".dmp") then
+    fs.delete(cfg.fl.sys..cfg.fl.dmp..cfg.filenm..".dmp")
+    end
+  end
+end
+
+function getTable(file)
+  if fs.exists(file) then
+  local new = {}
+  local f = fs.open(file, "r")
+  local ln = f.readLine()
+    while ln ~= nil do
+    table.insert(new, ln)
+    ln = f.readLine()
+    end
+  f.close()
+  return new
+  else
+  return {""}
+  end
+end
+
+function makeButton(x1, y1, x2, y2, name, text, color, pos)
+term.setBackgroundColor(color)
+  for y = y1, y2 do
+  term.setCursorPos(x1, y)
+    for x = x1, x2 do
+    write(" ")
+    end
+  end
+  if type(text) == "table" then
+  local y = math.floor((y2-y1+1-#text)/2)+y1
+    if not pos then
+      for i = 1, #text do
+      local x = math.floor((x2-x1+1-#tostring(text[i]))/2)+x1
+      term.setCursorPos(x, y+i-1)
+      write(text[i])
+      end
+    elseif pos == "l" then
+      for i = 1, #text do
+      term.setCursorPos(x1+1, y1+i-1)
+      write(text[i])
+      end
+    end
+  else
+    if not pos then
+    term.setCursorPos(math.floor((x2-x1+1-#tostring(text))/2)+x1, math.floor((y2-y1+1)/2)+y1)
+    elseif pos == "l" then
+    term.setCursorPos(x1+1, math.floor((y2-y1+1)/2)+y1)
+    end
+  write(text)
+  end
+  if buttons == nil then
+  buttons = {}
+  end
+buttons[name] = {x1, y1, x2, y2, text, pos}
+end
+ 
+function makeField(x1, y1, x2, y2, color)
+term.setBackgroundColor(color)
+  for y = y1, y2 do
+  term.setCursorPos(x1, y)
+    for x = x1, x2 do
+    write(" ")
+    end
+  end
+term.setBackgroundColor(scm.back)
+end
+
+function advread(x, y, len, backclr, textclr, text, cursor)
+local running = true
+local cfg = {
+["pos"] = 1;
+["cursor"] = 1;
+["caps"] = false;
+["text"] = ""
+}
+
+  local function writeLine()
+  term.setCursorPos(x, y)
+    for i = x, x+len-1 do
+    write(" ")
+    end
+  term.setCursorPos(x, y)
+    if #string.sub(cfg.text, cfg.pos) > len then
+    write(string.sub(cfg.text, cfg.pos, cfg.pos+len-1))
+    else
+    write(string.sub(cfg.text, cfg.pos))
+    end
+  end
+  
+  local function checkCursor()
+    if cfg.cursor > len then
+    cfg.cursor = cfg.cursor - 1
+    cfg.pos = cfg.pos + 1
+    writeLine()
+    elseif cfg.cursor < 1 then
+    cfg.cursor = cfg.cursor + 1
+      if cfg.pos > 1 then
+      cfg.pos = cfg.pos - 1
+      end
+    end
+  end
+term.setBackgroundColor(backclr)
+term.setTextColor(textclr)
+term.setCursorPos(x, y)
+  for i = x, x+len-1 do
+  write(" ")
+  end
+  if text then
+    if cursor then
+      if cursor > len then
+      cfg.cursor = len-1
+      cfg.pos = #text-cfg.cursor
+      else
+      cfg.cursor = cursor
+      end
+    else
+      if #text > len then
+      cfg.cursor = len-1
+      cfg.pos = #text-cfg.cursor
+      else
+      cfg.cursor = #text
+      end
+    end
+  cfg.text = text
+  end
+term.setCursorBlink(true)
+  while running do
+  writeLine()
+  term.setCursorPos(x+cfg.cursor-1, y)
+  e = {os.pullEventRaw()}
+    if e[1] == "char" then
+      if caps then
+      cfg.text = string.sub(cfg.text, 1, cfg.pos+cfg.cursor-1)..string.upper(e[2])..string.sub(cfg.text, cfg.pos+cfg.cursor)
+      else
+      cfg.text = string.sub(cfg.text, 1, cfg.pos+cfg.cursor-1)..e[2]..string.sub(cfg.text, cfg.pos+cfg.cursor)
+      end
+    cfg.cursor = cfg.cursor + 1
+    checkCursor()
+    elseif e[1] == "key" then
+      if e[2] == 14 then
+      cfg.text = string.sub(cfg.text, 1, cfg.pos+cfg.cursor-3)..string.sub(cfg.text, cfg.pos+cfg.cursor-1)
+      cfg.cursor = cfg.cursor - 1
+      checkCursor()
+      elseif e[2] == 203 then
+      cfg.cursor = cfg.cursor - 1
+      checkCursor()
+      elseif e[2] == 205 then
+        if cfg.pos+cfg.cursor-2 < #cfg.text then
+        cfg.cursor = cfg.cursor + 1
+        checkCursor()
+        end
+      elseif e[2] == 28 then
+      term.setCursorBlink(false)
+      return cfg.text
+      end
+    end
+  end
+end
+
+function checkButton(x, y)
+  for i, v in pairs(buttons) do
+    if x >= v[1] and x <= v[3] and y >= v[2] and y <= v[4] then
+    return i
+    end
+  end
+end
+
+function popUp(txt, tp, clr)
+  local function rm()
+    if not tp or tp == "ok" then
+    buttons["ok"] = nil
+    elseif tp == "y/n" then
+    buttons["yes"], buttons["no"] = nil
+    end
+  end
+local y = math.ceil((Y-#txt)/2)-2
+local maxx = 0
+  for i = 1, #txt do
+    if #txt[i] > maxx then
+    maxx = #txt[i]
+    end
+  end
+local x = math.floor((X-maxx)/2)
+  if clr then
+  makeField(x, y, x+maxx+1, y+#txt+3, clr)
+  term.setBackgroundColor(clr)
+  else
+  makeField(x, y, x+maxx+1, y+#txt+3, scm.popup)
+  term.setBackgroundColor(scm.popup)
+  end
+  for i = 1, #txt do
+  term.setCursorPos(x+1, y+i)
+  write(txt[i])
+  end
+local cnt = math.floor(X/2)+1
+  if not tp or tp == "ok" then
+  makeButton(cnt-2, y+#txt+2, cnt+2, y+#txt+2, "ok", "OK", scm.ok)
+  elseif tp == "y/n" then
+  makeButton(cnt-5, y+#txt+2, cnt-1, y+#txt+2, "yes", "Yes", scm.y)
+  makeButton(cnt+1, y+#txt+2, cnt+5, y+#txt+2, "no", "No", scm.n)
+  end
+local run = true
+  while run do
+  e = {os.pullEventRaw()}
+    if e[1] == "mouse_click" then
+      if not tp or tp == "ok" then
+        if checkButton(e[3], e[4]) == "ok" then
+        rm()
+        run = false
+        end
+      elseif tp == "y/n" then
+        if checkButton(e[3], e[4]) == "yes" then
+        rm()
+        run = false
+        return "y"
+        elseif checkButton(e[3], e[4]) == "no" then
+        rm()
+        run = false
+        return "n"
+        end
+      end
+    end
+  end
+end
+
+function makeMenu(elm, x1, x2, y1, changeBut)
+term.setCursorBlink(false)
+local v = buttons[changeBut]
+  if changeBut then
+    if buttons[changeBut] then
+    local v = buttons[changeBut]
+    makeButton(v[1], v[2], v[3], v[4], changeBut, v[5], scm.buact, v[6])
+    end
+  end
+sleep(0.15)
+makeField(x1, y1, x2, y1+#elm+1, scm.menu)
+  for i = 1, #elm do
+    if i%2 == 0 then
+    makeButton(x1+1, y1+i, x2-1, y1+i, elm[i][1], elm[i][2], scm.menubut2, "l")
+    else
+    makeButton(x1+1, y1+i, x2-1, y1+i, elm[i][1], elm[i][2], scm.menubut, "l")
+    end
+  end
+end
+
+function delMenu(elm)
+  for i = 1, #elm do
+  buttons[elm[i][1]] = nil
+  end
+end
+
+function writeLine(txt, back)
+words = {
+["function"] = scm.fun;
+["if"] = scm.fun;
+["and"] = scm.fun;
+["or"] = scm.fun;
+["then"] = scm.fun;
+["else"] = scm.fun;
+["elseif"] = scm.fun;
+["while"] = scm.fun;
+["for"] = scm.fun;
+["in"] = scm.fun;
+["do"] = scm.fun;
+["repeat"] = scm.fun;
+["until"] = scm.fun;
+["end"] = scm.fun;
+["break"] = scm.fun;
+["return"] = scm.fun;
+["local"] = scm.fun;
+["true"] = scm.ste;
+["false"] = scm.ste;
+["nil"] = scm.ste
+}
+  local function tryWrite(txt, pat, clr)
+  local match = string.match(txt, pat)
+    if match then
+      if type(clr) == "number" then
+      term.setTextColor(clr)
+      else
+      term.setTextColor(clr(match))
+      end
+    term.write(match)
+    term.setTextColor(scm.txt)
+    return string.sub(txt, #match+1)
+    end
+  return nil
+  end
+  while #txt > 0 do
+  txt = 
+  tryWrite(txt, "^%-%-%[%[.-%]%]", scm.cmt) or
+  tryWrite(txt, "^%-%-.*", scm.cmt) or
+  tryWrite(txt, "^\".-[^\\]\"", scm.str) or
+  tryWrite(txt, "^\'.-[^\\]\'", scm.str) or
+  tryWrite(txt, "^[%w_]+", function (match)
+    if words[match] then
+    return words[match]
+    else
+    return scm.txt
+    end
+  end
+  ) or
+  tryWrite(txt, "^[^w_]", scm.txt)
+  end
+end
+
+function printLines()
+term.setBackgroundColor(scm.back)
+  for i = cfg.offtop+1, Y-1 do
+  term.setCursorPos(1, i)
+  term.clearLine()
+  end
+  if #text <= Y-cfg.offtop-cfg.offbot then
+    for i = 1, #text-cfg.line+1 do
+    term.setCursorPos(1-cfg.pos+1, i+cfg.offtop)
+    writeLine(text[cfg.line+i-1])
+    end
+  else
+    if #text > cfg.line+Y-cfg.offtop-cfg.offbot-1 then
+      for i = 1, Y-cfg.offtop-cfg.offbot do
+      term.setCursorPos(1-cfg.pos+1, i+cfg.offtop)
+      writeLine(text[cfg.line+i-1])
+      end
+    else
+      for i = 1, #text-cfg.line+1 do
+      term.setCursorPos(1-cfg.pos+1, i+cfg.offtop)
+      writeLine(text[cfg.line+i-1])
+      end
+    end
+  end
+end
+
+function printLine()
+term.setBackgroundColor(scm.back)
+term.setCursorPos(1, cfg.linepos+cfg.offtop)
+term.clearLine()
+term.setCursorPos(1-cfg.pos+1, cfg.linepos+cfg.offtop)
+writeLine(text[cfg.line+cfg.linepos-1])
+end
+
+function barTop()
+term.setCursorPos(1, 1)
+term.setBackgroundColor(scm.bartop)
+term.clearLine()
+makeButton(3, 1, 10, 1, "file", "File", scm.butop)
+makeButton(13, 1, 21, 1, "line", "Line", scm.butop)
+makeButton(24, 1, 32, 1, "actions", "Actions", scm.butop)
+  if X > 46 then
+  makeButton(35, 1, 43, 1, "options", "Options", scm.butop)
+  else
+  term.setCursorPos(1, 2)
+  term.setBackgroundColor(scm.bartop)
+  term.clearLine()
+  makeButton(3, 2, 10, 2, "options", "Options", scm.butop)
+    if cfg.offtop < 2 then
+    cfg.offtop = cfg.offtop + 1
+    end
+  end
+end
+
+function barBot()
+term.setCursorPos(1, Y)
+term.setBackgroundColor(scm.barbot)
+term.clearLine()
+local txt = "Line "..(cfg.line+cfg.linepos-1).." of "..#text
+makeButton(3, Y, 4+#txt, Y, "lines", txt, scm.bubot)
+  if #tostring(cfg.lastev) > 0 then
+  makeButton(X-#tostring(cfg.lastev)-3, Y, X-2, Y, "lastact", cfg.lastev, scm.bubot)
+  end
+end
+
+function printAll()
+term.setTextColor(scm.txt)
+barTop()
+barBot()
+printLines()
+end
+
+function checkCursor()
+  if cfg.linepos > Y-cfg.offtop-cfg.offbot then
+  cfg.line = cfg.line + (cfg.linepos-(Y-cfg.offtop-cfg.offbot))
+  cfg.linepos = cfg.linepos - (cfg.linepos-(Y-cfg.offtop-cfg.offbot))
+  printLines()
+  elseif cfg.linepos < 1 then
+    if cfg.line > 1 then
+      if cfg.line-(1-cfg.linepos) >= 1 then
+      cfg.line = cfg.line - (1-cfg.linepos)
+      else
+      cfg.line = 1
+      end
+    end
+  cfg.linepos = 1
+  printLines()
+  end
+  if cfg.cursor > X then
+  cfg.pos = cfg.pos + (cfg.cursor-X)
+  cfg.cursor = cfg.cursor - (cfg.cursor-X)
+  printLines()
+  elseif cfg.cursor < 1 then
+    if cfg.pos > 1 then
+      if cfg.pos-(1-cfg.cursor) >= 1 then
+      cfg.pos = cfg.pos - (1-cfg.cursor)
+      else
+      cfg.pos = 1
+      end
+    printLines()
+    end
+  cfg.cursor = 1
+  else
+  printLine()
+  end
+end
+
+function insert(word)
+text[cfg.line+cfg.linepos-1] = string.sub(text[cfg.line+cfg.linepos-1], 1, cfg.pos+cfg.cursor-2)..word..string.sub(text[cfg.line+cfg.linepos-1], cfg.pos+cfg.cursor-1)
+end
+
+function callprog(args)
+local ok, err
+term.setBackgroundColor(32768)
+term.clear()
+term.setCursorPos(1, 1)
+local func, errload = loadfile(cfg.fl.sys..cfg.fl.dmp..cfg.filenm..".dmp")
+  if func then
+    if args then
+    local arg = {}
+    for m in string.gmatch(args, "[^ \t]+") do
+    arg[#arg + 1] = m:gsub("^%s*(.-)%s*$", "%1")
+    end
+    ok, err = pcall(func, unpack(arg))
+    else
+    ok, err = pcall(func)
+    end
+  else
+  err = errload
+  end
+  if not ok then
+  local txt = {
+  "Your program has crashed!";
+  "The error code is";
+  err
+  }
+  popUp(txt)
+  else
+  print("Click anywhere to return to luaedit")
+  os.pullEvent("mouse_click")
+  printAll()
+  end
+end
+
+function file()
+local menu = {
+{"save", "Save File"};
+{"pastebin", "pastebin"};
+{"save&exit", "Save&Exit"};
+{"exit", "Exit"}
+}
+makeMenu(menu, buttons["file"][1]-2, buttons["file"][3]+4, buttons["file"][4]+1, "file")
+local run = true
+  while run do
+  e = {os.pullEventRaw()}
+    if e[1] == "mouse_click" then
+      if checkButton(e[3], e[4]) == "file" then
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "save" then
+      autosave("del")
+      fwrite(text, cfg.filenm, true)
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "save&exit" then
+      autosave("del")
+      fwrite(text, cfg.filenm)
+      run = false
+      running = false
+      elseif checkButton(e[3], e[4]) == "pastebin" then
+        if http then
+        local key = "65ea67d061b102aa026db0f77a948b01"
+        local txt = ""
+          for i = 1, #text do
+          txt = txt..text[i].."\n"
+          end
+        cfg.lastev = "Posting..."
+        barBot()
+        local resp = http.post("http://pastebin.com/api/api_post.php", "api_option=paste&api_dev_key="..
+        key.."&api_paste_format=lua&api_paste_name="..
+        textutils.urlEncode(string.match(cfg.filenm, "[^/]-$"))..
+        "&api_paste_code="..textutils.urlEncode(txt)
+        )
+          if resp then
+          local code = string.match(resp.readAll(), "[^/]+$")
+          resp.close()
+          cfg.lastev = code
+          local txt = {
+          "This program is now available on pastebin";
+          "You can get it any time with";
+          "pastebin get "..code
+          }
+          popUp(txt)
+          table.insert(text, 1, "--[[** This program is available on pastebin ("..code..") **]]--")
+          else
+          cfg.lastev = "Failed"
+          end
+        printAll()
+        run = false
+        else
+        cfg.lastev = "HTTP-API disabled"
+        printAll()
+        run = false
+        end
+      elseif checkButton(e[3], e[4]) == "exit" then
+      autosave("del")
+      run = false
+      running = false
+      elseif e[1] == "timer" then
+        if e[2] == cfg.evhandle.autosv then
+        autosave("sv")
+        cfg.evhandle.autosv = os.startTimer(cfg.autosv)
+        end
+      else
+      os.queueEvent("mouse_click", e[2], e[3], e[4])
+      printAll()
+      run = false
+      end
+    end
+  end
+delMenu(menu)
+term.setCursorBlink(true)
+end
+
+function line()
+local menu = {
+{"copyline", "Copy Line"};
+{"cutline", "Cut Line"};
+{"pasteline", "Paste Line"}
+}
+makeMenu(menu, buttons["line"][1]-2, buttons["line"][3]+4, buttons["line"][4]+1, "line")
+local run = true
+  while run do
+  e = {os.pullEventRaw()}
+    if e[1] == "mouse_click" then
+      if checkButton(e[3], e[4]) == "line" then
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "copyline" then
+      cfg.buffer = text[cfg.linepos+cfg.line-1]
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "cutline" then
+      cfg.pos = 1
+      cfg.cursor = 1
+      cfg.buffer = text[cfg.linepos+cfg.line-1]
+      text[cfg.linepos+cfg.line-1] = ""
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "pasteline" then
+      local lenold = #text[cfg.linepos+cfg.line-1]
+      text[cfg.linepos+cfg.line-1] = text[cfg.linepos+cfg.line-1]..cfg.buffer
+      cfg.cursor = cfg.cursor + (#text[cfg.linepos+cfg.line-1]-lenold)
+      checkCursor()
+      printAll()
+      run = false
+      elseif e[1] == "timer" then
+        if e[2] == cfg.evhandle.autosv then
+        autosave("sv")
+        cfg.evhandle.autosv = os.startTimer(cfg.autosv)
+        end
+      else
+      os.queueEvent("mouse_click", e[2], e[3], e[4])
+      printAll()
+      run = false
+      end
+    end
+  end
+delMenu(menu)
+term.setCursorBlink(true)
+end
+
+function actions()
+local menu = {
+{"goto1", "Go To Start"};
+{"gotopos", "Go To Pos"};
+{"gotoend", "Go To End"};
+{"run", "Run"};
+{"runw/args", "Run w/ Args"}
+}
+makeMenu(menu, buttons["actions"][1]-2, buttons["actions"][3]+4, buttons["actions"][4]+1, "actions")
+local run = true
+  while run do
+  e = {os.pullEventRaw()}
+    if e[1] == "mouse_click" then
+      if checkButton(e[3], e[4]) == "actions" then
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "goto1" then
+      cfg.pos = 1
+      cfg.cursor = 1
+      cfg.line = 1
+      cfg.linepos = 1
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "gotoend" then
+      cfg.pos = 1
+      cfg.cursor = 1
+        if #text < Y-cfg.offtop-cfg.offbot then
+        cfg.line = 1
+        cfg.linepos = #text
+        else
+        cfg.line = #text-Y+cfg.offtop+cfg.offbot+1
+        cfg.linepos = Y-cfg.offtop-cfg.offbot
+        end
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "gotopos" then
+      local num = tonumber(advread(buttons["actions"][1]-1, 4, 13, scm.buact, scm.txt))
+        if num then
+          if num < 1 then
+          cfg.line = 1
+          cfg.linepos = 1
+          elseif #text >= num+Y-cfg.offtop-cfg.offbot then
+          cfg.line = num
+          cfg.linepos = 1
+          else
+            if #text > Y-cfg.offtop-cfg.offbot then
+            cfg.line = #text-Y+cfg.offtop+cfg.offbot+1
+              if num >= #text then
+              cfg.linepos = Y-cfg.offtop-cfg.offbot
+              else
+              cfg.linepos = num-cfg.line+1
+              end
+            else
+            cfg.line = 1
+              if num <= Y-cfg.offtop-cfg.offbot then
+              cfg.linepos = num
+              else
+              cfg.linepos = #text
+              end
+            end
+          end
+        cfg.pos = 1
+        cfg.cursor = 1
+        end
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "run" then
+      autosave("sv")
+      callprog()
+      run = false
+      elseif checkButton(e[3], e[4]) == "runw/args" then
+      autosave("sv")
+      local y = math.ceil(Y/2)
+      local x = math.floor(X/2)+1
+      makeField(x-10, y-2, x+10, y+2, scm.popup)
+      term.setBackgroundColor(scm.popup)
+      term.setCursorPos(x-9, y)
+      write(string.match(cfg.filenm, "[^/]-$"))
+      local len = x-8+#string.match(cfg.filenm, "[^/]-$")
+      local args = advread(len, y, x+9-len, scm.popup, scm.txt)
+      callprog(args)
+      run = false
+      printAll()
+      elseif e[1] == "timer" then
+        if e[2] == cfg.evhandle.autosv then
+        autosave("sv")
+        cfg.evhandle.autosv = os.startTimer(cfg.autosv)
+        end
+      else
+      os.queueEvent("mouse_click", e[2], e[3], e[4])
+      run = false
+      printAll()
+      end
+    end
+  end
+delMenu(menu)
+term.setCursorBlink(true)
+end
+
+function options()
+local menu = {
+{"about", "About"};
+}
+makeMenu(menu, buttons["options"][1]-2, buttons["options"][3]+4, buttons["options"][4]+1, "options")
+local run = true
+  while run do
+  e = {os.pullEventRaw()}
+    if e[1] == "mouse_click" then
+      if checkButton(e[3], e[4]) == "options" then
+      printAll()
+      run = false
+      elseif checkButton(e[3], e[4]) == "about" then
+      local txt = {
+      "luaedit v"..cfg.ver,
+      "written by wieselkatze"
+      }
+      run = false
+      popUp(txt)
+      printAll()
+      else
+      os.queueEvent("mouse_click", e[2], e[3], e[4])
+      printAll()
+      run = false
+      end
+    end
+  end
+delMenu(menu)
+term.setCursorBlink(true)
+end
+
+function startUI()
+local x = math.floor(X/2)+1
+local y = math.floor(Y/2)
+  local function clear()
+  term.setBackgroundColor(scm.uiback)
+  term.clear()
+  center("Welcome to luaedit", 2)
+  end
+  local function ui()
+  makeField(1, y-3, x-15, y-1, scm.uihigh)
+  makeField(1, y+1, x-20, y+3, scm.uihigh)
+  makeField(x+20, y-3, X, y-1, scm.uihigh)
+  makeField(x+15, y+1, X, y+3, scm.uihigh)
+  makeButton(x-13, y-3, x-1, y-1, "openfile", "Open File", 2)
+  makeButton(x+1, y-3, x+18, y-1, "openpastebin", "Open fr pastebin", 8)
+  makeButton(x-18, y+1, x-1, y+3, "settings", "Settings", 64)
+  makeButton(x+1, y+1, x+13, y+3, "exit", "Exit", 512)
+  end
+clear()
+ui()
+local run = true
+  while run do
+  e = {os.pullEventRaw()}
+    if e[1] == "mouse_click" then
+      if checkButton(e[3], e[4]) == "openfile" then
+      clear()
+      makeField(x-13, y-3, x+13, y+2, scm.uihigh)
+      term.setBackgroundColor(scm.uihigh)
+      center("Open File", y-2)
+      term.setCursorPos(x-11, y)
+      write("/")
+      cfg.filenm = advread(x-9, y, 21, scm.uihigh, 1)
+        if #cfg.filenm == 0 then
+        popUp({"Not a valid filename"}, false, scm.uihigh)
+        clear()
+        ui()
+        else
+        text = getTable(cfg.filenm)
+        run = false
+        running = true
+        end
+      elseif checkButton(e[3], e[4]) == "openpastebin" then
+      clear()
+      makeField(x-13, y-3, x+13, y+4, scm.uihigh)
+      term.setBackgroundColor(scm.uihigh)
+      center("Open from pastebin", y-2)
+      term.setCursorPos(x-11, y)
+      write("/")
+      term.setCursorPos(x-11, y+2)
+      write("pastebin ID: ")
+      cfg.filenm = advread(x-9, y, 21, scm.uihigh, 1)
+      local id = advread(x+2, y+2, 11, scm.uihigh, 1)
+        if #cfg.filenm == 0 then
+        popUp({"Not a valid filename"}, false, scm.uihigh)
+        clear()
+        ui()
+        elseif not http then
+        popUp({"HTTP API is not enabled"}, false, scm.uihigh)
+        clear()
+        ui()
+        else
+        local resp = http.get("http://www.pastebin.com/raw.php?i="..textutils.urlEncode(id))
+          if resp then
+          local ln = resp.readLine()
+            while ln ~= nil do
+            table.insert(text, ln)
+            ln = resp.readLine()
+            end
+          resp.close()
+          run = false
+          running = true
+          else
+          popUp({"Failed to open file from pastebin", "Please check your pastebin ID", "or retry later"}, false, scm.uihigh)
+          clear()
+          ui()
+          end
+        end
+      elseif checkButton(e[3], e[4]) == "settings" then
+      popUp({"Currently not available", "But coming soon :)"}, false, scm.uihigh)
+      clear()
+      ui()
+      elseif checkButton(e[3], e[4]) == "exit" then
+      run = false
+      term.setBackgroundColor(32768)
+      term.clear()
+      term.setCursorPos(1, 1)
+      end
+    end
+  end
+buttons = {}
+end
+
+-- FUNCTIONS END --
+
+-- INITIALIZE --
+X, Y = term.getSize()
+text = {}
+startUI()
+-- INITIALIZE END --
+
+-- MAIN LOOP --
+function main()
+term.setCursorBlink(true)
+printAll()
+  while running do
+  local old = {cfg.linepos+cfg.line-1, #text, cfg.lastev}
+  term.setCursorPos(cfg.cursor, cfg.linepos+cfg.offtop)
+  e = {os.pullEventRaw()}
+    if e[1] == "char" then
+      for i, v in pairs(autocomp) do
+        if e[2] == i then
+          if string.sub(text[cfg.linepos+cfg.line-1], cfg.pos+cfg.cursor-1, cfg.pos+cfg.cursor-1) ~= i then
+          insert(v)
+          end
+        end
+      end
+      if cfg.caps then
+      insert(string.upper(e[2]))
+      else
+      insert(e[2])
+      end
+    cfg.cursor = cfg.cursor + 1
+    checkCursor()
+    elseif e[1] == "key" then
+      if e[2] == 15 then
+      insert(string.rep(" ", cfg.tab))
+      cfg.changed = cfg.changed + 1
+      cfg.cursor = cfg.cursor + cfg.tab
+      checkCursor()
+      elseif e[2] == 14 then
+        if cfg.cursor+cfg.pos-1 > 1 then
+        text[cfg.linepos+cfg.line-1] = string.sub(text[cfg.linepos+cfg.line-1], 1, cfg.pos+cfg.cursor-3)..string.sub(text[cfg.linepos+cfg.line-1], cfg.pos+cfg.cursor-1)
+        cfg.cursor = cfg.cursor - 1
+        checkCursor()
+        elseif cfg.line+cfg.linepos-1 > 1 then
+        local old = #text[cfg.linepos+cfg.line-2]
+        text[cfg.linepos+cfg.line-2] = text[cfg.linepos+cfg.line-2]..text[cfg.linepos+cfg.line-1]
+        table.remove(text, cfg.linepos+cfg.line-1)
+        cfg.linepos = cfg.linepos - 1
+          if old > X then
+          cfg.cursor = X
+          cfg.pos = old-X+2
+          else
+          cfg.cursor = old+1
+          end
+        checkCursor()
+        printLines()
+        end
+      elseif e[2] == 211 then
+        if cfg.cursor+cfg.pos-2 < #text[cfg.linepos+cfg.line-1] then
+        text[cfg.linepos+cfg.line-1] = string.sub(text[cfg.linepos+cfg.line-1], 1, cfg.pos+cfg.cursor-2)..string.sub(text[cfg.linepos+cfg.line-1], cfg.pos+cfg.cursor)
+        checkCursor()
+        elseif cfg.linepos+cfg.line-1 < #text then
+        text[cfg.linepos+cfg.line-1] = text[cfg.linepos+cfg.line-1]..text[cfg.linepos+cfg.line]
+        table.remove(text, cfg.linepos+cfg.line)
+        printLines()
+        end
+      elseif e[2] == 28 then
+      local ins = ""
+        if string.match(text[cfg.linepos+cfg.line-1], "^%s*%s") then
+        ins = string.match(text[cfg.linepos+cfg.line-1], "^%s*%s")
+        end
+      table.insert(text, cfg.line+cfg.linepos, ins..string.sub(text[cfg.linepos+cfg.line-1], cfg.pos+cfg.cursor-1))
+      text[cfg.linepos+cfg.line-1] = string.sub(text[cfg.linepos+cfg.line-1], 1, cfg.pos+cfg.cursor-2)
+      cfg.linepos = cfg.linepos + 1
+        if #ins < X then
+        cfg.pos = 1
+        cfg.cursor = #ins+1
+        else
+        cfg.pos = #ins+1
+        cfg.cursor = 1
+        end
+      checkCursor()
+      printLines()
+      elseif e[2] == 199 then
+      cfg.pos = 1
+      cfg.cursor = 1
+      printLines()
+      elseif e[2] == 207 then
+        if #text[cfg.linepos+cfg.line-1] > X then
+        cfg.pos = #text[cfg.linepos+cfg.line-1]-X+2
+        cfg.cursor = X
+        else
+        cfg.pos = 1
+        cfg.cursor = #text[cfg.linepos+cfg.line-1]+1
+        end
+      printLines()
+      elseif e[2] == 203 then
+        if cfg.cursor+cfg.pos-1 > 1 then
+        cfg.cursor = cfg.cursor - 1
+        checkCursor()
+        elseif cfg.linepos+cfg.line-1 > 1 then
+          if #text[cfg.linepos+cfg.line-2] < X then
+          cfg.pos = 1
+          cfg.cursor = #text[cfg.linepos+cfg.line-2]+1
+          else
+          cfg.pos = #text[cfg.linepos+cfg.line-2]-X+2
+          cfg.cursor = X
+          end
+        cfg.linepos = cfg.linepos - 1
+        checkCursor()
+        printLines()
+        end
+      elseif e[2] == 205 then
+        if cfg.cursor+cfg.pos-2 < #text[cfg.linepos+cfg.line-1] then
+        cfg.cursor = cfg.cursor + 1
+        checkCursor()
+        elseif cfg.linepos+cfg.line-1 < #text then
+        cfg.pos = 1
+        cfg.cursor = 1
+        cfg.linepos = cfg.linepos + 1
+        checkCursor()
+          if #text[cfg.linepos+cfg.line-2] >= X then
+          printLines()
+          end
+        end
+      elseif e[2] == 200 then
+        if cfg.linepos+cfg.line-1 > 1 then
+            if #text[cfg.linepos+cfg.line-2] < cfg.pos+cfg.cursor-1 then
+            cfg.cursor = cfg.cursor - (cfg.pos+cfg.cursor-1-#text[cfg.linepos+cfg.line-2]) + 1
+            end
+          cfg.linepos = cfg.linepos - 1
+          checkCursor()
+          printLines()
+        end
+      elseif e[2] == 208 then
+        if cfg.linepos+cfg.line-1 < #text then
+          if #text[cfg.linepos+cfg.line] < cfg.pos+cfg.cursor-1 then
+          cfg.cursor = cfg.cursor - (cfg.pos+cfg.cursor-1-#text[cfg.linepos+cfg.line]) + 1
+          end
+        cfg.linepos = cfg.linepos + 1
+        checkCursor()
+        printLines()
+        end
+      elseif e[2] == 201 then
+        if cfg.line-cfg.pgscroll >= 1 then
+        cfg.line = cfg.line - cfg.pgscroll
+        else
+        cfg.line = 1
+        end
+        if #text[cfg.linepos+cfg.line-1] < cfg.pos+cfg.cursor-1 then
+        cfg.cursor = cfg.cursor - (cfg.pos+cfg.cursor-1-#text[cfg.linepos+cfg.line-1]) + 1
+        checkCursor()
+        end
+      printLines()
+      elseif e[2] == 209 then --PgDWN
+        if cfg.line+cfg.pgscroll <= #text-Y+cfg.offtop+cfg.offbot then
+        cfg.line = cfg.line + cfg.pgscroll
+        else
+          if #text > Y-cfg.offtop-cfg.offbot then
+          cfg.line = #text - Y+cfg.offtop+cfg.offbot + 1
+          else
+          cfg.line = 1
+          end
+        end
+        if #text[cfg.linepos+cfg.line-1] < cfg.pos+cfg.cursor-1 then
+        cfg.cursor = cfg.cursor - (cfg.pos+cfg.cursor-1-#text[cfg.linepos+cfg.line-1]) + 1
+        checkCursor()
+        end
+      printLines()
+      end
+    elseif e[1] == "mouse_click" then
+      if checkButton(e[3], e[4]) == "file" then
+      file()
+      elseif checkButton(e[3], e[4]) == "actions" then
+      actions()
+      elseif checkButton(e[3], e[4]) == "options" then
+      options()
+      elseif checkButton(e[3], e[4]) == "line" then
+      line()
+      elseif e[4] >= 1+cfg.offtop and e[4] <= Y-cfg.offbot then
+        if e[4]-cfg.offtop > #text then
+        cfg.linepos = #text
+        else
+        cfg.linepos = e[4]-cfg.offtop
+        end
+        if e[3]+cfg.pos-1 > #text[cfg.linepos+cfg.line-1] then
+        cfg.cursor = #text[cfg.linepos+cfg.line-1]-cfg.pos+2
+        else
+        cfg.cursor = e[3]
+        end
+      checkCursor()
+      end
+    elseif e[1] == "mouse_scroll" then
+      if e[2] == -1 then
+        if cfg.line > 1 then
+        cfg.line = cfg.line - 1
+          if cfg.linepos < #text-cfg.line+1 and cfg.linepos < Y-cfg.offtop-cfg.offbot then
+          cfg.linepos = cfg.linepos + 1
+          end
+        end
+      printAll()
+      elseif e[2] == 1 then
+        if cfg.line < #text-Y+cfg.offtop+cfg.offbot+1 then
+        cfg.line = cfg.line + 1
+          if cfg.linepos > 1 then
+          cfg.linepos = cfg.linepos - 1
+          end
+        end
+      printAll()
+      end
+      if cfg.cursor+cfg.pos-1 > #text[cfg.linepos+cfg.line-1] then
+      cfg.cursor = #text[cfg.linepos+cfg.line-1]+1
+      end
+    elseif e[1] == "timer" then
+      if e[2] == cfg.evhandle.autosv then
+      autosave("sv")
+      cfg.evhandle.autosv = os.startTimer(cfg.autosv)
+      end
+    end
+    if old[1] ~= cfg.linepos+cfg.line-1 or old[2] ~= #text or old[3] ~= cfg.lastev then
+    barBot()
+    end
+  end
+end
+-- MAIN LOOP END --
+
+if running then
+_, err = pcall(main)
+term.setCursorBlink(false)
+  if err then
+  term.setBackgroundColor(scm.err)
+  term.clear()
+  term.setTextColor(scm.errtxt)
+  center("Oh no!", 2)
+  center("luaedit has crashed :/", 4)
+  center("Please report to wieselkatze and show him", 7)
+  center(cfg.crash..".err", 9)
+  center("Click anywhere to continue...", 12)
+  fwrite({err, "#text = "..#text, "-", "cursor @"..cfg.cursor, "pos @"..cfg.pos, "textpos @"..cfg.cursor+cfg.pos-1, "-", "line @"..cfg.line, "linepos @"..cfg.linepos, "textline @"..cfg.linepos+cfg.line-1, "-", "lastev = "..cfg.lastev}, cfg.crash..".err")
+  os.pullEvent("mouse_click")
+  term.setBackgroundColor(32768)
+  term.clear()
+  term.setCursorPos(1, 1)
+  else
+  term.setBackgroundColor(32768)
+  term.clear()
+  term.setCursorPos(1, 1)
+  print("Thank you for using luaedit\nwritten by wieselkatze")
+  end
+end
