@@ -682,6 +682,7 @@ mainMenu()
       term.clear()
       term.setCursorPos(1, 1)
       run = false
+      running = false
       end
     end
   end
