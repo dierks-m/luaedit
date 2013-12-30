@@ -1,0 +1,1244 @@
+-- LUAEDIT made by wieselkatze --
+
+-- VARIABLES --
+scm = {
+["uiback"] = 128;
+["popupback"] = 256;
+["back"] = 32768;
+["lnback"] = 128;
+["txt"] = 1;
+["uihigh"] = 256;
+["popupok"] = 8;
+["popupyes"] = 32;
+["popupno"] = 16384;
+
+["cmt"] = 32;
+["str"] = 16384;
+["fun"] = 512;
+["ste"] = 8;
+
+["barbot"] = 256;
+["bubot"] = 8;
+["bartop"] = 256;
+["butop"] = 8;
+["buact"] = 2;
+["menu"] = 2;
+["menubut1"] = 128;
+["menubut2"] = 256;
+
+["errback"] = 128;
+["errtxt"] = 512
+}
+
+prg = {
+["autosv"] = 30;
+["currscm"] = "default";
+
+["offtop"] = 1;
+["offbot"] = 1;
+["tab"] = 2;
+["lastev"] = "";
+
+["file"] = {};
+
+["pos"] = 1;
+["cursor"] = 1;
+["line"] = 1;
+["linepos"] = 1;
+["caps"] = false;
+["autocomp"] = {
+["("] = ")";
+["["] = "]";
+["{"] = "}";
+["\""] = "\"";
+["\'"] = "\'"
+};
+
+["buttons"] = {};
+["buffer"] = "";
+
+["version"] = "0.1 beta build 2";
+
+["fl"] = {
+["sys"] = "ldt/";
+["dmp"] = "dumps/";
+["scm"] = "schemes/";
+["apis"] = "apis/";
+["cfg"] = "config";
+["err"] = "crash"
+};
+
+["evhandle"] = {
+["autosv"] = 0;
+};
+
+["apis"] = {
+}
+}
+-- VARIABLES END --
+
+
+-- FUNCTIONS --
+function fwrite(text, file, msg)
+local path =
+string.match(file, ".+/") or
+string.match(file, ".+\\")
+  if path ~= nil and fs.exists(path) == false then
+  fs.makeDir(path)
+  end
+  if not fs.isReadOnly(file) then
+  local f = io.open(file, "w")
+    if f then
+      for _, v in pairs(text) do
+      f:write(tostring(v).."\n")
+      end
+      if msg then
+      prg.lastev = "Saved to "..file
+      end
+    else
+      if msg then
+      prg.lastev = "Access denied"
+      end
+    end
+  f:close()
+  else
+    if msg then
+    prg.lastev = "File Read Only"
+    end
+  end
+end
+
+function getTable(path)
+  if fs.exists(path) and not fs.isDir(path) then
+  local file = io.open(path, "r")
+  local new = {}
+    for line in file:lines() do
+    table.insert(new, line)
+    end
+  file:close()
+    if #new > 0 then
+    return new
+    else
+    return {""}
+    end
+  else
+  return {""}
+  end
+end
+
+function autosave(tp)
+  if tp == "sv" then
+  fwrite(prg.file, prg.fl.sys..prg.fl.dmp..prg.filename..".dmp")
+  elseif tp == "del" then
+    if fs.exists(prg.fl.sys..prg.fl.dmp..prg.filename..".dmp") then
+    fs.delete(prg.fl.sys..prg.fl.dmp..prg.filename..".dmp")
+    end
+  end
+end
+
+function center(text, y)
+local x = math.floor((X-#text)/2)+1
+term.setCursorPos(x, y)
+write(text)
+end
+
+function makeField(x1, y1, x2, y2, color)
+term.setBackgroundColor(color)
+  for y = y1, y2 do
+  term.setCursorPos(x1, y)
+  write(string.rep(" ", x2-x1+1))
+  end
+end
+
+function makeButton(x1, y1, x2, y2, name, text, color, pos)
+makeField(x1, y1, x2, y2, color)
+  if type(text) == "string" then
+    if not pos or pos == "c" then
+    local x = math.floor(((x2-x1+1)-#text)/2)+x1
+    local y = math.ceil((y2-y1+1)/2)+y1-1
+    term.setCursorPos(x, y)
+    write(text)
+    elseif pos == "l" then
+    local y = math.ceil((y2-y1+1)/2)+y1-1
+    term.setCursorPos(x1+1, y)
+    write(text)
+    elseif pos == "r" then
+    local y = math.ceil((y2-y1+1)/2)+y1-1
+    term.setCursorPos(x2-text:len(), y)
+    write(text)
+    end
+  end
+  if not prg.buttons then
+  prg.buttons = {}
+  end
+prg.buttons[name] = {x1, y1, x2, y2, text, pos}
+end
+
+function checkButton(x1, y1)
+  for i, v in pairs(prg.buttons) do
+    if x1 >= v[1] and x1 <= v[3] and y1 >= v[2] and y1 <= v[4] then
+    return i
+    end
+  end
+end
+
+function popUp(text, tp)
+local buttonsold = prg.buttons
+prg.buttons = {}
+local x = math.floor(X/2)+1
+local y = math.floor(Y/2)
+local run = true
+  local function rm()
+    if not tp or tp == "ok" then
+    prg.buttons["ok"] = nil
+    elseif tp == "y/n" then
+    prg.buttons["yes"], prg.buttons["no"] = nil
+    end
+  end
+local maxx = 0
+  for i = 1, #text do
+    if #text[i] > maxx then
+    maxx = #text[i]
+    end
+  end
+maxx = math.floor(maxx/2)
+local len = math.floor(#text/2)
+makeField(x-maxx-1, y-len-2, x+maxx+1, y+len+2, scm.popupback)
+  for i = 1, #text do
+  term.setCursorPos(x-maxx, y-len-2+i)
+  write(text[i])
+  end
+  if not tp or tp == "ok" then
+  makeButton(x-2, y+len+1, x+2, y+len+1, "ok", "Ok", scm.popupok)
+  elseif tp == "yn" then
+  makeButton(x-5, y+len+1, x-1, y+len+1, "yes", "Yes", scm.popupyes)
+  makeButton(x+1, y+len+1, x+5, y+len+1, "no", "No", scm.popupno)
+  end
+  while run do
+  local e = {os.pullEvent()}
+    if e[1] == "mouse_click" then
+      if not tp or tp == "ok" then
+        if checkButton(e[3], e[4]) == "ok" then
+        run = false
+        end
+      elseif tp == "yn" then
+        if checkButton(e[3], e[4]) == "yes" then
+        run = false
+        return "y"
+        else
+        run = false
+        return "n"
+        end
+      end
+    end
+  end
+prg.buttons = buttonsold
+end
+
+function dropDown(items, button)
+local startx
+local endx
+local starty
+local endy
+  if prg.buttons[button][3]+4 > X then
+  startx = prg.buttons[button][1]-4
+  endx = prg.buttons[button][3]+2
+  else
+  startx = prg.buttons[button][1]-2
+  endx = prg.buttons[button][3]+4
+  end
+  if prg.buttons[button][4]+#items > Y then
+  starty = prg.buttons[button][2]-#items-2
+  endy = prg.buttons[button][2]-1
+  else
+  starty = prg.buttons[button][4]+1
+  endy = prg.buttons[button][4]+#items+2
+  end
+local v = prg.buttons[button]
+makeButton(v[1], v[2], v[3], v[4], button, v[5], scm.buact, v[6])
+makeField(startx, starty, endx, endy, scm.menu)
+  for i = 1, #items do
+    if i%2 == 0 then
+    makeButton(startx+1, starty+i, endx-1, starty+i, items[i][1], items[i][2], scm.menubut2, "l")
+    else
+    makeButton(startx+1, starty+i, endx-1, starty+i, items[i][1], items[i][2], scm.menubut1, "l")
+    end
+  end
+end
+
+function delMenu(menu)
+  for i = 1, #menu do
+    if prg.buttons[menu[i][1]] then
+    prg.buttons[menu[i][1]] = nil
+    end
+  end
+end
+
+function advread(x, y, len, backclr, textclr, text, cursor)
+local running = true
+local cfg = {
+["pos"] = 1;
+["cursor"] = 1;
+["caps"] = false;
+["text"] = ""
+}
+
+  local function writeLine()
+  term.setCursorPos(x, y)
+    for i = x, x+len-1 do
+    write(" ")
+    end
+  term.setCursorPos(x, y)
+    if #string.sub(cfg.text, cfg.pos) > len then
+    write(string.sub(cfg.text, cfg.pos, cfg.pos+len-1))
+    else
+    write(string.sub(cfg.text, cfg.pos))
+    end
+  end
+  
+  local function checkCursor()
+    if cfg.cursor > len then
+    cfg.cursor = cfg.cursor - 1
+    cfg.pos = cfg.pos + 1
+    writeLine()
+    elseif cfg.cursor < 1 then
+    cfg.cursor = cfg.cursor + 1
+      if cfg.pos > 1 then
+      cfg.pos = cfg.pos - 1
+      end
+    end
+  end
+term.setBackgroundColor(backclr)
+term.setTextColor(textclr)
+term.setCursorPos(x, y)
+  for i = x, x+len-1 do
+  write(" ")
+  end
+  if text then
+    if cursor then
+      if cursor > len then
+      cfg.cursor = len-1
+      cfg.pos = #text-cfg.cursor
+      else
+      cfg.cursor = cursor
+      end
+    else
+      if #text > len then
+      cfg.cursor = len-1
+      cfg.pos = #text-cfg.cursor
+      else
+      cfg.cursor = #text
+      end
+    end
+  cfg.text = text
+  end
+term.setCursorBlink(true)
+  while running do
+  writeLine()
+  term.setCursorPos(x+cfg.cursor-1, y)
+  e = {os.pullEvent()}
+    if e[1] == "char" then
+      if caps then
+      cfg.text = string.sub(cfg.text, 1, cfg.pos+cfg.cursor-1)..string.upper(e[2])..string.sub(cfg.text, cfg.pos+cfg.cursor)
+      else
+      cfg.text = string.sub(cfg.text, 1, cfg.pos+cfg.cursor-1)..e[2]..string.sub(cfg.text, cfg.pos+cfg.cursor)
+      end
+    cfg.cursor = cfg.cursor + 1
+    checkCursor()
+    elseif e[1] == "key" then
+      if e[2] == 14 then
+      cfg.text = string.sub(cfg.text, 1, cfg.pos+cfg.cursor-3)..string.sub(cfg.text, cfg.pos+cfg.cursor-1)
+      cfg.cursor = cfg.cursor - 1
+      checkCursor()
+      elseif e[2] == 203 then
+      cfg.cursor = cfg.cursor - 1
+      checkCursor()
+      elseif e[2] == 205 then
+        if cfg.pos+cfg.cursor-2 < #cfg.text then
+        cfg.cursor = cfg.cursor + 1
+        checkCursor()
+        end
+      elseif e[2] == 28 then
+      term.setCursorBlink(false)
+      return cfg.text
+      end
+    end
+  end
+end
+
+function writeLine(txt, clr)
+local words = {
+["function"] = scm.fun;
+["if"] = scm.fun;
+["for"] = scm.fun;
+["repeat"] = scm.fun;
+["until"] = scm.fun;
+["and"] = scm.fun;
+["or"] = scm.fun;
+["then"] = scm.fun;
+["else"] = scm.fun;
+["elseif"] = scm.fun;
+["in"] = scm.fun;
+["do"] = scm.fun;
+["break"] = scm.fun;
+["return"] = scm.fun;
+["end"] = scm.fun;
+["local"] = scm.fun;
+["print"] = scm.fun;
+["write"] = scm.fun;
+
+["true"] = scm.ste;
+["false"] = scm.ste;
+["nil"] = scm.ste
+}
+
+  local function tryWrite(txt, pat, clr)
+  local match = string.match(txt, pat)
+    if match then
+      if type(clr) == "number" then
+      term.setTextColor(clr)
+      else
+      term.setTextColor(clr(match))
+      end
+    term.write(match)
+    term.setTextColor(scm.txt)
+    return string.sub(txt, #match+1)
+    end
+  return nil
+  end
+
+local oldx, oldy = term.getCursorPos()
+
+  if clr then
+  term.setBackgroundColor(clr)
+  else
+  term.setBackgroundColor(scm.back)
+  end
+  
+term.clearLine()
+term.setCursorPos(oldx, oldy)
+
+  while #txt > 0 do
+  txt = 
+  tryWrite(txt, "^%-%-%[%[.-%]%]", scm.cmt) or
+  tryWrite(txt, "^%-%-.*", scm.cmt) or
+  tryWrite(txt, "^\".-[^\\]\"", scm.str) or
+  tryWrite(txt, "^\'.-[^\\]\'", scm.str) or
+  tryWrite(txt, "^%[%[.-%]%]", scm.str) or
+  tryWrite(txt, "^[%w_]+", function (match)
+    if words[match] then
+    return words[match]
+    else
+    return scm.txt
+    end
+  end
+  ) or
+  tryWrite(txt, "^[^w_]", scm.txt)
+  end
+end
+
+function callprog(args)
+local ok, err
+term.setBackgroundColor(32768)
+term.clear()
+term.setCursorPos(1, 1)
+local func, errload = loadfile(prg.fl.sys..prg.fl.dmp..prg.filename..".dmp")
+  if func then
+    if args then
+    local arg = {}
+    for m in string.gmatch(args, "[^ \t]+") do
+    arg[#arg + 1] = m:gsub("^%s*(.-)%s*$", "%1")
+    end
+    parallel.waitForAny(function() ok, err = pcall(func, unpack(arg)) end,
+    function()
+      while true do
+      _, id = os.pullEvent("timer")
+        if id == prg.evhandle.autosv then
+        prg.evhandle.autosv = os.startTimer(prg.autosv)
+        end
+      end
+    end)
+    else
+    parallel.waitForAny(function() ok, err = pcall(func) end, 
+    function()
+      while true do
+      _, id = os.pullEvent("timer")
+        if id == prg.evhandle.autosv then
+        prg.evhandle.autosv = os.startTimer(prg.autosv)
+        end
+      end
+    end)
+    end
+  else
+  err = errload
+  end
+  if not ok then
+  local txt = {
+  "Your program has crashed!";
+  "The error code is";
+  err
+  }
+  popUp(txt)
+  else
+  print("Click anywhere to return to luaedit")
+  os.pullEvent("mouse_click")
+  printAll()
+  end
+end
+
+function barTop()
+local ypos = 1
+term.setCursorPos(1, 1)
+term.setBackgroundColor(scm.bartop)
+term.setTextColor(scm.txt)
+term.clearLine()
+makeButton(3, 1, 12, 1, "file", "File", scm.butop)
+makeButton(15, 1, 24, 1, "line", "Line", scm.butop)
+makeButton(27, 1, 36, 1, "actions", "Actions", scm.butop)
+makeButton(39, 1, 48, 1, "options", "Options", scm.butop)
+end
+
+function barBot()
+term.setCursorPos(1, Y)
+term.setBackgroundColor(scm.barbot)
+term.setTextColor(scm.txt)
+term.clearLine()
+local txt = "Line "..(prg.line+prg.linepos-1).." of "..#prg.file
+makeField(3, Y, 4+#txt, Y, scm.bubot)
+term.setCursorPos(4, Y)
+write(txt)
+prg.lastev = tostring(prg.lastev)
+  if #prg.lastev > 0 then
+  makeField(X-#prg.lastev-3, Y, X-2, Y, scm.bubot)
+  term.setCursorPos(X-#prg.lastev-2, Y)
+  write(prg.lastev)
+  end
+end
+
+function printLines()
+term.setBackgroundColor(scm.back)
+  for i = prg.offtop+1, Y-1 do
+  term.setCursorPos(1, i)
+  term.clearLine()
+  end
+  if #prg.file > prg.line+Y-prg.offtop-prg.offbot-1 then
+    for i = 1, Y-prg.offtop-prg.offbot do
+    term.setCursorPos(1-prg.pos+1, i+prg.offtop)
+      if prg.line+i-1 == prg.line+prg.linepos-1 then
+      writeLine(prg.file[prg.line+i-1], scm.lnback)
+      else
+      writeLine(prg.file[prg.line+i-1])
+      end
+    end
+  else
+    for i = 1, #prg.file-prg.line+1 do
+    term.setCursorPos(1-prg.pos+1, i+prg.offtop)
+      if prg.line+i-1 == prg.line+prg.linepos-1 then
+      writeLine(prg.file[prg.line+i-1], scm.lnback)
+      else
+      writeLine(prg.file[prg.line+i-1])
+      end
+    end
+  end
+end
+
+function printAll()
+barTop()
+barBot()
+printLines()
+end
+
+function setCursor(x1, y1)
+  if y1 then
+    if y1 ~= prg.line+prg.linepos-1 or y1 > #prg.file then
+      if y1 >= 1 then
+        if y1 < prg.line then
+        prg.line = y1
+        prg.linepos = 1
+        printLines()
+        elseif y1 > prg.line+Y-prg.offtop-prg.offbot-1 then
+        prg.line = y1-(Y-prg.offtop-prg.offbot)+1
+        prg.linepos = Y-prg.offtop-prg.offbot
+        printLines()
+        else
+        prg.linepos = y1-prg.line+1
+        printLines()
+        end
+      end
+    end
+  end
+
+  if x1 ~= prg.pos+prg.cursor-1 or x1 > #prg.file[prg.line+prg.linepos-1]+1 then
+    if x1 >= 1 then
+      if x1 < prg.pos then
+      prg.pos = x1
+      prg.cursor = 1
+      printLines()
+      elseif x1 > prg.pos+X-1 then
+      prg.pos = x1-X+1
+      prg.cursor = X
+      printLines()
+      else
+      prg.cursor = x1-prg.pos+1
+      term.setCursorPos(1-prg.pos+1, prg.linepos+prg.offtop)
+      writeLine(prg.file[prg.line+prg.linepos-1], scm.lnback)
+      end
+    end
+  end
+end
+
+function insert(text)
+prg.file[prg.line+prg.linepos-1] = string.sub(prg.file[prg.line+prg.linepos-1], 1, prg.pos+prg.cursor-2)..text..string.sub(prg.file[prg.line+prg.linepos-1], prg.pos+prg.cursor-1)
+end
+
+function startUI()
+local x = math.floor(X/2)+1
+local y = math.floor((Y+5)/2)
+local run = true
+  local function clear()
+  term.setBackgroundColor(scm.uiback)
+  term.clear()
+  makeField(1, 2, X, 4, scm.uihigh)
+  term.setCursorPos(2, 3)
+  write("Welcome to luaedit")
+  end
+
+  local function mainMenu()
+  makeField(1, y-3, x-13, y-1, scm.uihigh)
+  makeField(1, y+1, x-20, y+3, scm.uihigh)
+  makeField(x+20, y-3, X, y-1, scm.uihigh)
+  makeField(x+13, y+1, X, y+3, scm.uihigh)
+  makeButton(x-11, y-3, x-1, y-1, "openfile", "Open File", 2)
+  makeButton(x+1, y-3, x+18, y-1, "openpastebin", "Open fr pastebin", 8)
+  makeButton(x-18, y+1, x-1, y+3, "settings", "Settings", 64)
+  makeButton(x+1, y+1, x+11, y+3, "exit", "Exit", 512)
+  end
+clear()
+mainMenu()
+  while run do
+  local e = {os.pullEvent()}
+    if e[1] == "mouse_click" then
+      if checkButton(e[3], e[4]) == "openfile" then
+      clear()
+      local y = math.floor(Y/2)+1
+      makeField(x-11, y-3, x+11, y+2, scm.popupback)
+      center("Open File", y-2)
+      term.setCursorPos(x-10, y)
+      write("/")
+      local path = advread(x-9, y, 20, scm.popupback, scm.txt)
+        if #path > 0 then
+        prg.filename = path
+        prg.file = getTable(path)
+        running = true
+        run = false
+        else
+        clear()
+        popUp({"Invalid file name"})
+        clear()
+        mainMenu()
+        end
+      elseif checkButton(e[3], e[4]) == "openpastebin" then
+      clear()
+      local y = math.floor(Y/2)+1
+      makeField(x-11, y-3, x+11, y+3, scm.popupback)
+      center("Open from pastebin", y-2)
+      term.setCursorPos(x-10, y)
+      write("Path: /")
+      term.setCursorPos(x-10, y+2)
+      write("pb ID: ")
+      local path = advread(x-3, y, 13, scm.popupback, scm.txt)
+      local id = advread(x-3, y+2, 13, scm.popupback, scm.txt)
+        if #path == 0 then
+        clear()
+        popUp({"Not a valid filename"})
+        clear()
+        mainMenu()
+        elseif not http then
+        clear()
+        popUp({"HTTP API is not enabled"})
+        clear()
+        mainMenu()
+        else
+        local resp = http.get("http://www.pastebin.com/raw.php?i="..textutils.urlEncode(id))
+          if resp then
+          prg.filename = path
+          local ln = resp.readLine()
+            while ln ~= nil do
+            table.insert(prg.file, ln)
+            ln = resp.readLine()
+            end
+          resp.close()
+          run = false
+          running = true
+          else
+          clear()
+          popUp({"Failed to open file from pastebin", "Please check your pastebin ID", "or retry later"})
+          clear()
+          mainMenu()
+          end
+        end
+      elseif checkButton(e[3], e[4]) == "exit" then
+      term.setBackgroundColor(32768)
+      term.clear()
+      term.setCursorPos(1, 1)
+      run = false
+      end
+    end
+  end
+prg.buttons = {}
+end
+
+function loadCFG(path)
+  local cfg = getTable(path)
+  local new = {}
+    for j = 1, #cfg do
+      if string.find(cfg[j], ":") then
+      local val = string.sub(cfg[j], string.find(cfg[j], ":")+1)
+        if tonumber(val) then
+        val = tonumber(val)
+        elseif val == "true" then
+        val = true
+        elseif val == "false" then
+        val = false
+        end
+      new[string.sub(cfg[j], 1, string.find(cfg[j], ":")-1)] = val
+      end
+    end
+  return new
+  end
+
+function writeCFG(cfg, path)
+local new = {}
+  for i, v in pairs(cfg) do
+  table.insert(new, i..":"..v)
+  end
+fwrite(new, path)
+end
+
+function initUI()
+  if fs.exists(prg.fl.sys..prg.fl.cfg) then
+  local cfg = loadCFG(prg.fl.sys..prg.fl.cfg)
+    for i, v in pairs(cfg) do
+      if prg[i] then
+        if type(v) == type(prg[i]) then
+        prg[i] = v
+        end
+      end
+    end
+  else
+  local default = {
+  "currscm:default";
+  "tab:2";
+  }
+  fwrite(default, prg.fl.sys..prg.fl.cfg)
+  end
+  if fs.exists(prg.fl.sys..prg.fl.scm) then
+  local schemes = fs.list(prg.fl.sys..prg.fl.scm)
+    for i = 1, #schemes do
+      if schemes[i] == prg.currscm..".scm" then
+      local scmnew = loadCFG(prg.fl.sys..prg.fl.scm..schemes[i])
+        for i, v in pairs(scmnew) do
+          if type(v) == "number" then
+            if v >= 1 and v <= 32768 then
+            scm[i] = v
+            end
+          end
+        end
+      break
+      end
+    end
+  else
+  fs.makeDir(prg.fl.sys..prg.fl.scm)
+  writeCFG(scm, prg.fl.sys..prg.fl.scm.."default.scm")
+  end
+  if fs.exists(prg.fl.sys..prg.fl.apis) then
+  local apis = fs.list(prg.fl.sys..prg.fl.apis)
+    for i = 1, #apis do
+      if string.sub(apis[i], #apis[i]-3, #apis[i]) == ".api" then
+      prg.apis[string.match(apis[i], "^[^.]+")] = getTable(prg.fl.sys..prg.fl.apis..apis[i])
+      end
+    end
+  else
+  fs.makeDir(prg.fl.sys..prg.fl.apis)
+  end
+end
+
+function fileMenu()
+term.setCursorBlink(false)
+local run = true
+local menu = {
+{"i", "Info"};
+{"s", "Save"};
+{"s&e", "Save&Exit"};
+{"pb", "pastebin"};
+{"e", "Exit"}
+}
+dropDown(menu, "file")
+
+  while run do
+  local e = {os.pullEvent()}
+    if e[1] == "mouse_click" and e[2] == 1 then
+      if checkButton(e[3], e[4]) == "file" then
+      run = false
+      elseif checkButton(e[3], e[4]) == "i" then
+      local len = 0
+      local size = 0
+      local lines
+        for i = 1, #prg.file do
+        len = len + #prg.file[i]
+        end
+        if #prg.file == 1 then
+        lines = "line"
+        else
+        lines = "lines"
+        end
+        if len < 1000 then
+        size = "Size: "..(len+#prg.file*2).." B"
+        elseif len < 1000000 then
+        size = "Size: "..(math.floor((len+#prg.file*2)/100)/10).." KB"
+        else
+        size = "Size: "..(math.floor((len+#prg.file*2)/100000)/10).." MB"
+        end
+      local txt = {
+      "Path: ".."/"..prg.filename;
+      "Name: "..string.match(prg.filename, "[^/]-$");
+      size;
+      "Length: "..len.." characters, "..#prg.file.." "..lines;
+      }
+      popUp(txt)
+      run = false
+      elseif checkButton(e[3], e[4]) == "s" then
+      fwrite(prg.file, prg.filename, true)
+      run = false
+      elseif checkButton(e[3], e[4]) == "s&e" then
+      fwrite(prg.file, prg.filename)
+      autosave("del")
+      run = false
+      running = false
+      elseif checkButton(e[3], e[4]) == "pb" then
+        if http then
+        local txt = ""
+          for i = 1, #prg.file do
+          txt = txt..prg.file[i].."\n"
+          end
+        prg.lastev = "Posting..."
+        barBot()
+        local resp = http.post("http://pastebin.com/api/api_post.php",
+        "api_option=paste&api_dev_key=65ea67d061b102aa026db0f77a948b01"..
+        "&api_paste_format=lua&api_paste_name="..textutils.urlEncode(string.match(prg.filename, "[^/]-$"))..
+        "&api_paste_code="..textutils.urlEncode(txt)
+        )
+          if resp then
+          local code = string.match(resp.readAll(), "[^/]+$")
+          resp.close()
+          prg.lastev = "ID: "..code
+          local txt = {
+          "This program is now available on pastebin";
+          "You can get it any time with";
+          "pastebin get "..code;
+          "or in the program with \"open fr pastebin\""
+          }
+          popUp(txt)
+          table.insert(prg.file, 1, "--[[** This program is available on pastebin ("..code..") **]]--")
+          else
+          prg.lastev = "Failed"
+          end
+        end
+      run = false
+      elseif checkButton(e[3], e[4]) == "e" then
+      autosave("del")
+      run = false
+      running = false
+      else
+      run = false
+      os.queueEvent(e[1], e[2], e[3], e[4])
+      end
+    elseif e[1] == "timer" then
+      if e[2] == prg.evhandle.autosv then
+      autosave("sv")
+      prg.evhandle.autosv = os.startTimer(prg.autosv)
+      end
+    end
+  end
+delMenu(menu)
+printAll()
+term.setCursorBlink(true)
+end
+
+function lineMenu()
+term.setCursorBlink(false)
+local run = true
+local menu = {
+{"cp", "Copy Line"};
+{"ct", "Cut Line"};
+{"pt", "Paste Line"}
+}
+dropDown(menu, "line")
+
+  while run do
+  local e = {os.pullEvent()}
+    if e[1] == "mouse_click" and e[2] == 1 then
+      if checkButton(e[3], e[4]) == "line" then
+      run = false
+      elseif checkButton(e[3], e[4]) == "cp" then
+      prg.buffer = prg.file[prg.line+prg.linepos-1]
+      run = false
+      elseif checkButton(e[3], e[4]) == "ct" then
+      prg.buffer = prg.file[prg.line+prg.linepos-1]
+      prg.file[prg.line+prg.linepos-1] = ""
+      setCursor(1)
+      run = false
+      elseif checkButton(e[3], e[4]) == "pt" then
+      prg.file[prg.line+prg.linepos-1] = string.sub(prg.file[prg.line+prg.linepos-1], 1, prg.pos+prg.cursor-2)..prg.buffer..string.sub(prg.file[prg.line+prg.linepos-1], prg.pos+prg.cursor-1)
+      setCursor(prg.pos+prg.cursor-1+#prg.buffer)
+      run = false
+      else
+      run = false
+      os.queueEvent(e[1], e[2], e[3], e[4])
+      end
+    elseif e[1] == "timer" then
+      if e[2] == prg.evhandle.autosv then
+      autosave("sv")
+      prg.evhandle.autosv = os.startTimer(prg.autosv)
+      end
+    end
+  end
+delMenu(menu)
+printAll()
+term.setCursorBlink(true)
+end
+
+function actionsMenu()
+term.setCursorBlink(false)
+local run = true
+local menu = {
+{"g1", "Go to start"};
+{"gp", "Go to pos"};
+{"ge", "Go to end"};
+{"r", "Run"};
+{"rw", "Run w/ Args"}
+}
+dropDown(menu, "actions")
+
+  while run do
+  local e = {os.pullEvent()}
+    if e[1] == "mouse_click" and e[2] == 1 then
+      if checkButton(e[3], e[4]) == "actions" then
+      run = false
+      elseif checkButton(e[3], e[4]) == "g1" then
+      setCursor(1, 1)
+      run = false
+      elseif checkButton(e[3], e[4]) == "gp" then
+      local num = tonumber(advread(prg.buttons["actions"][1]-1, prg.buttons["actions"][4]+3, prg.buttons["actions"][3]-prg.buttons["actions"][1]+5, scm.menu, scm.txt))
+        if num then
+          if num < 1 then
+          setCursor(1, 1)
+          elseif num > #prg.file then
+          setCursor(1, #prg.file)
+          else
+          setCursor(1, num)
+          end
+        end
+      run = false
+      elseif checkButton(e[3], e[4]) == "ge" then
+      setCursor(1, #prg.file)
+      run = false
+      elseif checkButton(e[3], e[4]) == "r" then
+      autosave("sv")
+      callprog()
+      run = false
+      elseif checkButton(e[3], e[4]) == "rw" then
+      local x = math.floor(X/2)+1
+      local y = math.floor((Y+prg.offtop-prg.offbot)/2)+1
+      makeField(x-13, y-3, x+13, y+3, scm.popupback)
+      center("Run program", y-2)
+      term.setCursorPos(x-12, y)
+      local name = string.match(prg.filename, "[^/]-$")
+      write(name)
+      local args = advread(x-12+#name+1, y, 24-#name, scm.popupback, scm.txt)
+      autosave("sv")
+      callprog(args)
+      run = false
+      else
+      run = false
+      os.queueEvent(e[1], e[2], e[3], e[4])
+      end
+    elseif e[1] == "timer" then
+      if e[2] == prg.evhandle.autosv then
+      autosave("sv")
+      prg.evhandle.autosv = os.startTimer(prg.autosv)
+      end
+    end
+  end
+delMenu(menu)
+printAll()
+term.setCursorBlink(true)
+end
+
+function optionsMenu()
+local schemes = {}
+local y = math.floor((Y+prg.offtop-prg.offbot)/2)
+local x = math.floor(X/2)+1
+local function writeOptions(pos)
+  if #schemes <= 3 then
+    for i = 1, #schemes do
+    makeField(x-8, y-5+((i-1)*4), x+8, y-3+((i-1)*4), scm.menubut1)
+    term.setCursorPos(x-7, y-4+((i-1)*4))
+    write(schemes[i])
+    end
+  end
+end
+
+term.setCursorBlink(false)
+local run = true
+local menu = {
+{"ab", "About"};
+{"ss", "Set scheme"}
+}
+dropDown(menu, "options")
+
+  while run do
+  e = {os.pullEvent()}
+    if e[1] == "mouse_click" and e[2] == 1 then
+      if checkButton(e[3], e[4]) == "options" then
+      run = false
+      elseif checkButton(e[3], e[4]) == "ab" then
+      local txt = {
+      "luaedit v"..prg.version;
+      "written by wieselkatze"
+      }
+      popUp(txt)
+      run = false
+      elseif checkButton(e[3], e[4]) == "ss" then
+      makeField(x-9, y-6, x+9, y+6, scm.popupback)
+      schemes = fs.list(prg.fl.sys..prg.fl.scm)
+      local cfg = loadCFG(prg.fl.sys..prg.fl.cfg)
+        for i in pairs(schemes) do
+          if string.sub(schemes[i], #schemes[i]-3) ~= ".scm" then
+          table.remove(schemes, i)
+          end
+        end
+      local scroll = 1
+      writeOptions(scroll)
+        while true do
+        e = {os.pullEvent()}
+          if e[1] == "mouse_click" then
+            if e[3] >= x-8 and e[3] <= x+8 then
+              if e[4] >= y-5 and e[4] <= y-3 then
+              cfg.currscm = string.match(schemes[scroll], "^[^.]+")
+              break
+              elseif e[4] >= y-1 and e[4] <= y+1 then
+                if #schemes > 1 then
+                cfg.currscm = string.match(schemes[scroll+1], "^[^.]+")
+                break
+                end
+              elseif e[4] >= y+2 and e[4] <= y+4 then
+                if #schemes > 2 then
+                cfg.currscm = string.match(schemes[scroll+2], "^[^.]+")
+                break
+                end
+              end
+            end
+          elseif e[1] == "mouse_scroll" then
+            if e[2] == -1 then
+              if scroll > 1 then
+              scroll = scroll - 1
+              writeOptions(scroll)
+              end
+            elseif e[2] == 1 then
+              if scroll+2 < #schemes then
+              scroll = scroll + 1
+              writeOptions(scroll)
+              end
+            end
+          elseif e[1] == "timer" then
+            if e[2] == prg.evhandle.autosv then
+            autosave("sv")
+            prg.evhandle.autosv = os.startTimer(prg.autosv)
+            end
+          end
+        end
+      writeCFG(cfg, prg.fl.sys..prg.fl.cfg)
+      initUI()
+      printAll()
+      run = false
+      else
+      run = false
+      os.queueEvent(e[1], e[2], e[3], e[4])
+      end
+    elseif e[1] == "timer" then
+      if e[2] == prg.evhandle.autosv then
+      autosave("sv")
+      prg.evhandle.autosv = os.startTimer(prg.autosv)
+      end
+    end
+  end
+delMenu(menu)
+printAll()
+term.setCursorBlink(true)
+end
+-- FUNCTIONS END --
+
+
+-- INITIALIZE --
+X, Y = term.getSize()
+startUI()
+initUI()
+-- INITIALIZE END --
+
+
+-- MAIN LOOP --
+function main()
+printAll()
+term.setCursorBlink(true)
+  while running do
+  term.setCursorPos(prg.cursor, prg.linepos+prg.offtop)
+  local check = {prg.line+prg.linepos-1, #prg.file, prg.lastev}
+  e = {os.pullEvent()}
+    if e[1] == "char" then
+      for i, v in pairs(prg.autocomp) do
+        if e[2] == i then
+          if string.sub(prg.file[prg.line+prg.linepos-1], prg.pos+prg.cursor-1, prg.pos+prg.cursor-1) ~= i then
+          insert(v)
+          end
+        end
+      end
+      if caps then
+      insert(string.upper(e[2]))
+      setCursor(prg.pos+prg.cursor)
+      else
+      insert(e[2])
+      setCursor(prg.pos+prg.cursor)
+      end
+    elseif e[1] == "key" then
+      if e[2] == 15 then
+      insert(string.rep(" ", prg.tab))
+      setCursor(prg.pos+prg.cursor-1+prg.tab)
+      elseif e[2] == 14 then
+        if prg.pos+prg.cursor-1 > 1 then
+        prg.file[prg.line+prg.linepos-1] = string.sub(prg.file[prg.line+prg.linepos-1], 1, prg.pos+prg.cursor-3)..string.sub(prg.file[prg.line+prg.linepos-1], prg.pos+prg.cursor-1)
+        setCursor(prg.pos+prg.cursor-2)
+        elseif prg.line+prg.linepos-1 > 1 then
+        local oldlen = #prg.file[prg.line+prg.linepos-2]
+        prg.file[prg.line+prg.linepos-2] = prg.file[prg.line+prg.linepos-2]..prg.file[prg.line+prg.linepos-1]
+        table.remove(prg.file, prg.line+prg.linepos-1)
+        setCursor(oldlen+1, prg.line+prg.linepos-2)
+        end
+      elseif e[2] == 199 then
+      setCursor(1)
+      elseif e[2] == 200 then
+        if prg.line+prg.linepos-1 > 1 then
+        setCursor(math.min(prg.pos+prg.cursor-1, #prg.file[prg.line+prg.linepos-2]+1), prg.line+prg.linepos-2)
+        end
+      elseif e[2] == 203 then
+        if prg.pos+prg.cursor-1 > 1 then
+        setCursor(prg.pos+prg.cursor-2)
+        elseif prg.line+prg.linepos-1 > 1 then
+        setCursor(#prg.file[prg.line+prg.linepos-2]+1, prg.line+prg.linepos-2)
+        end
+      elseif e[2] == 205 then
+        if prg.pos+prg.cursor-1 <= #prg.file[prg.line+prg.linepos-1] then
+        setCursor(prg.pos+prg.cursor)
+        elseif prg.line+prg.linepos-1 < #prg.file then
+        setCursor(1, prg.line+prg.linepos)
+        end
+      elseif e[2] == 207 then
+      setCursor(#prg.file[prg.line+prg.linepos-1]+1)
+      elseif e[2] == 208 then
+        if prg.line+prg.linepos-1 < #prg.file then
+        setCursor(math.min(prg.pos+prg.cursor-1, #prg.file[prg.line+prg.linepos]+1), prg.line+prg.linepos)
+        end
+      elseif e[2] == 211 then
+        if #prg.file[prg.line+prg.linepos-1] >= prg.pos+prg.cursor-1 then
+        prg.file[prg.linepos+prg.line-1] = string.sub(prg.file[prg.linepos+prg.line-1], 1, prg.pos+prg.cursor-2)..string.sub(prg.file[prg.linepos+prg.line-1], prg.pos+prg.cursor)
+        term.setCursorPos(1-prg.pos+1, prg.linepos+prg.offtop)
+        writeLine(prg.file[prg.line+prg.linepos-1], scm.lnback)
+        elseif #prg.file > prg.line+prg.linepos-1 then
+        prg.file[prg.linepos+prg.line-1] = prg.file[prg.line+prg.linepos-1]..prg.file[prg.line+prg.linepos]
+        table.remove(prg.file, prg.linepos+prg.line)
+        printAll()
+        end
+      elseif e[2] == 28 then
+      local ins = string.match(prg.file[prg.line+prg.linepos-1], "^%s*%s")
+        if not ins then
+        ins = ""
+        end
+      table.insert(prg.file, prg.line+prg.linepos, ins..string.sub(prg.file[prg.line+prg.linepos-1], prg.pos+prg.cursor-1))
+      prg.file[prg.line+prg.linepos-1] = string.sub(prg.file[prg.line+prg.linepos-1], 1, prg.pos+prg.cursor-2)
+      setCursor(#ins+1, prg.line+prg.linepos)
+      end
+    elseif e[1] == "mouse_click" and e[2] == 1 then
+      if checkButton(e[3], e[4]) == "file" then
+      fileMenu()
+      elseif checkButton(e[3], e[4]) == "line" then
+      lineMenu()
+      elseif checkButton(e[3], e[4]) == "actions" then
+      actionsMenu()
+      elseif checkButton(e[3], e[4]) == "options" then
+      optionsMenu()
+      elseif e[4] > prg.offtop and e[4] <= Y-prg.offbot then
+        if e[4]+prg.line-prg.offtop-1 <= #prg.file then
+        setCursor(math.min(#prg.file[e[4]+prg.line-prg.offtop-1]+1, e[3]+prg.pos-1), e[4]+prg.line-prg.offtop-1)
+        else
+        setCursor(math.min(#prg.file[#prg.file]+1, e[3]+prg.pos-1), #prg.file)
+        end
+      end
+    elseif e[1] == "mouse_scroll" then
+      if e[2] == -1 then
+        if prg.line > 1 then
+        prg.line = prg.line - 1
+          if prg.linepos < Y-prg.offtop-prg.offbot then
+          prg.linepos = prg.linepos + 1
+          end
+        end
+      printLines()
+      else
+        if prg.line+Y-prg.offtop-prg.offbot <= #prg.file then
+        prg.line = prg.line + 1
+          if prg.linepos > 1 then
+          prg.linepos = prg.linepos - 1
+          end
+        end
+      printLines()
+      end
+    elseif e[1] == "timer" then
+      if e[2] == prg.evhandle.autosv then
+      autosave("sv")
+      prg.evhandle.autosv = os.startTimer(prg.autosv)
+      end
+    end
+
+    if prg.line+prg.linepos-1 ~= check[1] or #prg.file ~= check[2] or prg.lastev ~= check[3] then
+    barBot()
+    end
+  end
+end
+-- MAIN LOOP END --
+
+-- ERROR CATCHING --
+if running then
+_, err = pcall(main)
+term.setCursorBlink(false)
+  if err then
+  term.setBackgroundColor(scm.errback)
+  term.clear()
+  term.setTextColor(scm.errtxt)
+  center("Oh no, luaedit has crashed :/", 2)
+  center("Please report to wieselkatze", 4)
+  center("and show him:", 5)
+  center(prg.fl.err..".err", 7)
+  fwrite({err}, prg.fl.err..".err")
+  center("Click anywhere to exit", 10)
+  os.pullEvent("mouse_click")
+  term.setBackgroundColor(32768)
+  term.clear()
+  term.setCursorPos(1, 1)
+  else
+  term.setBackgroundColor(32768)
+  term.clear()
+  term.setCursorPos(1, 1)
+  print("Thank you for using luaedit")
+  print("written by wieselkatze")
+  end
+end
+-- ERROR CATCHING END --

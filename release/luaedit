@@ -276,6 +276,18 @@ term.setCursorBlink(true)
       term.setCursorBlink(false)
       return cfg.text
       end
+    elseif e[1] == "mouse_click" then
+      if e[3] >= x and e[3] <= x+len-1 then
+        if e[3]-x+cfg.pos > #cfg.text then
+        cfg.cursor = #cfg.text-cfg.pos+2
+        else
+        cfg.cursor = e[3]-x+1
+        end
+      else
+      term.setCursorBlink(false)
+      os.queueEvent("mouse_click", e[2], e[3], e[4])
+      return cfg.text
+      end
     end
   end
 end
