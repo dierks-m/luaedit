@@ -31,6 +31,7 @@ scm = {
 }
 
 prg = {
+["butwidth"] = 10;
 ["autosv"] = 30;
 ["currscm"] = "default";
 
@@ -60,7 +61,7 @@ prg = {
 ["version"] = "0.1 beta build 2";
 
 ["fl"] = {
-["sys"] = "ldt/";
+["sys"] = ".ldt/";
 ["dmp"] = "dumps/";
 ["scm"] = "schemes/";
 ["apis"] = "apis/";
@@ -182,11 +183,13 @@ function checkButton(x1, y1)
   end
 end
 
-function popUp(text, tp)
+function popUp(text, tp, y)
 local buttonsold = prg.buttons
 prg.buttons = {}
 local x = math.floor(X/2)+1
-local y = math.floor(Y/2)
+  if not y then
+  local y = math.floor(Y/2)
+  end
 local run = true
   local function rm()
     if not tp or tp == "ok" then
@@ -487,15 +490,30 @@ local func, errload = loadfile(prg.fl.sys..prg.fl.dmp..prg.filename..".dmp")
 end
 
 function barTop()
+local menu = {
+{"file", "File"};
+{"line", "Line"};
+{"actions", "Actions"};
+{"options", "Options"}
+}
 local ypos = 1
+local xpos = 3
 term.setCursorPos(1, 1)
 term.setBackgroundColor(scm.bartop)
 term.setTextColor(scm.txt)
 term.clearLine()
-makeButton(3, 1, 12, 1, "file", "File", scm.butop)
-makeButton(15, 1, 24, 1, "line", "Line", scm.butop)
-makeButton(27, 1, 36, 1, "actions", "Actions", scm.butop)
-makeButton(39, 1, 48, 1, "options", "Options", scm.butop)
+  for i = 1, #menu do
+    if xpos+prg.butwidth > X then
+    ypos = ypos + 1
+    term.setCursorPos(1, ypos)
+    term.setBackgroundColor(scm.bartop)
+    term.clearLine()
+    xpos = 3
+    end
+  makeButton(xpos, ypos, xpos+prg.butwidth-1, ypos, menu[i][1], menu[i][2], scm.butop)
+  xpos = xpos+prg.butwidth+2
+  end
+prg.offtop = ypos
 end
 
 function barBot()
@@ -593,7 +611,7 @@ end
 
 function startUI()
 local x = math.floor(X/2)+1
-local y = math.floor((Y+5)/2)
+local y = math.floor((Y+4)/2)+1
 local run = true
   local function clear()
   term.setBackgroundColor(scm.uiback)
@@ -620,7 +638,6 @@ mainMenu()
     if e[1] == "mouse_click" then
       if checkButton(e[3], e[4]) == "openfile" then
       clear()
-      local y = math.floor((Y+4)/2)+1
       makeField(x-11, y-3, x+11, y+2, scm.popupback)
       center("Open File", y-2)
       term.setCursorPos(x-10, y)
@@ -633,13 +650,12 @@ mainMenu()
         run = false
         else
         clear()
-        popUp({"Invalid file name"})
+        popUp({"Invalid file name"}, "ok", y)
         clear()
         mainMenu()
         end
       elseif checkButton(e[3], e[4]) == "openpastebin" then
       clear()
-      local y = math.floor((Y+4)/2)+1
       makeField(x-11, y-3, x+11, y+3, scm.popupback)
       center("Open from pastebin", y-2)
       term.setCursorPos(x-10, y)
@@ -650,12 +666,12 @@ mainMenu()
       local id = advread(x-3, y+2, 13, scm.popupback, scm.txt)
         if #path == 0 then
         clear()
-        popUp({"Not a valid filename"})
+        popUp({"Not a valid filename"}, "ok", y)
         clear()
         mainMenu()
         elseif not http then
         clear()
-        popUp({"HTTP API is not enabled"})
+        popUp({"HTTP API is not enabled"}, "ok", y)
         clear()
         mainMenu()
         else
@@ -672,7 +688,7 @@ mainMenu()
           running = true
           else
           clear()
-          popUp({"Failed to open file from pastebin", "Please check your pastebin ID", "or retry later"})
+          popUp({"Failed to open file from pastebin", "Please check your pastebin ID", "or retry later"}, "ok", y)
           clear()
           mainMenu()
           end
@@ -978,7 +994,7 @@ end
 
 function optionsMenu()
 local schemes = {}
-local y = math.floor((Y+prg.offtop-prg.offbot)/2)
+local y = math.floor((Y+prg.offtop-prg.offbot)/2)+1
 local x = math.floor(X/2)+1
 local function writeOptions(pos)
   if #schemes <= 3 then
@@ -1203,6 +1219,7 @@ term.setCursorBlink(true)
           if prg.linepos < Y-prg.offtop-prg.offbot then
           prg.linepos = prg.linepos + 1
           end
+        setCursor(math.min(#prg.file[prg.line+prg.linepos-1]+1, prg.pos+prg.cursor-1))
         end
       printLines()
       else
@@ -1211,6 +1228,7 @@ term.setCursorBlink(true)
           if prg.linepos > 1 then
           prg.linepos = prg.linepos - 1
           end
+        setCursor(math.min(#prg.file[prg.line+prg.linepos-1]+1, prg.pos+prg.cursor-1))
         end
       printLines()
       end
