@@ -620,7 +620,7 @@ mainMenu()
     if e[1] == "mouse_click" then
       if checkButton(e[3], e[4]) == "openfile" then
       clear()
-      local y = math.floor(Y/2)+1
+      local y = math.floor((Y+4)/2)+1
       makeField(x-11, y-3, x+11, y+2, scm.popupback)
       center("Open File", y-2)
       term.setCursorPos(x-10, y)
@@ -639,7 +639,7 @@ mainMenu()
         end
       elseif checkButton(e[3], e[4]) == "openpastebin" then
       clear()
-      local y = math.floor(Y/2)+1
+      local y = math.floor((Y+4)/2)+1
       makeField(x-11, y-3, x+11, y+3, scm.popupback)
       center("Open from pastebin", y-2)
       term.setCursorPos(x-10, y)
