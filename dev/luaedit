@@ -188,7 +188,7 @@ local buttonsold = prg.buttons
 prg.buttons = {}
 local x = math.floor(X/2)+1
   if not y then
-  local y = math.floor(Y/2)
+  y = math.floor(Y/2)
   end
 local run = true
   local function rm()
