@@ -1,7 +1,7 @@
 -- LUAEDIT made by wieselkatze --
 
 -- VARIABLES --
-scm = {
+local scm = {
 ["uiback"] = 128;
 ["popupback"] = 256;
 ["back"] = 32768;
@@ -30,7 +30,7 @@ scm = {
 ["errtxt"] = 512
 }
 
-prg = {
+local prg = {
 ["butwidth"] = 10;
 ["autosv"] = 30;
 ["currscm"] = "default";
@@ -80,7 +80,7 @@ prg = {
 
 
 -- FUNCTIONS --
-function fwrite(text, file, msg)
+local fwrite = function(text, file, msg)
 local path =
 string.match(file, ".+/") or
 string.match(file, ".+\\")
@@ -109,7 +109,7 @@ string.match(file, ".+\\")
   end
 end
 
-function getTable(path)
+local getTable = function(path)
   if fs.exists(path) and not fs.isDir(path) then
   local file = io.open(path, "r")
   local new = {}
@@ -127,7 +127,7 @@ function getTable(path)
   end
 end
 
-function autosave(tp)
+local autosave = function(tp)
   if tp == "sv" then
   fwrite(prg.file, prg.fl.sys..prg.fl.dmp..prg.filename..".dmp")
   elseif tp == "del" then
@@ -137,13 +137,13 @@ function autosave(tp)
   end
 end
 
-function center(text, y)
+local center = function(text, y)
 local x = math.floor((X-#text)/2)+1
 term.setCursorPos(x, y)
 write(text)
 end
 
-function makeField(x1, y1, x2, y2, color)
+local makeField = function(x1, y1, x2, y2, color)
 term.setBackgroundColor(color)
   for y = y1, y2 do
   term.setCursorPos(x1, y)
@@ -151,7 +151,7 @@ term.setBackgroundColor(color)
   end
 end
 
-function makeButton(x1, y1, x2, y2, name, text, color, pos)
+local makeButton = function(x1, y1, x2, y2, name, text, color, pos)
 makeField(x1, y1, x2, y2, color)
   if type(text) == "string" then
     if not pos or pos == "c" then
@@ -175,7 +175,7 @@ makeField(x1, y1, x2, y2, color)
 prg.buttons[name] = {x1, y1, x2, y2, text, pos}
 end
 
-function checkButton(x1, y1)
+local checkButton = function(x1, y1)
   for i, v in pairs(prg.buttons) do
     if x1 >= v[1] and x1 <= v[3] and y1 >= v[2] and y1 <= v[4] then
     return i
@@ -183,7 +183,7 @@ function checkButton(x1, y1)
   end
 end
 
-function popUp(text, tp, y)
+local popUp = function(text, tp, y)
 local buttonsold = prg.buttons
 prg.buttons = {}
 local x = math.floor(X/2)+1
@@ -238,7 +238,7 @@ makeField(x-maxx-1, y-len-2, x+maxx+1, y+len+2, scm.popupback)
 prg.buttons = buttonsold
 end
 
-function dropDown(items, button)
+local dropDown = function(items, button)
 local startx
 local endx
 local starty
@@ -269,7 +269,7 @@ makeField(startx, starty, endx, endy, scm.menu)
   end
 end
 
-function delMenu(menu)
+local delMenu = function(menu)
   for i = 1, #menu do
     if prg.buttons[menu[i][1]] then
     prg.buttons[menu[i][1]] = nil
@@ -277,7 +277,7 @@ function delMenu(menu)
   end
 end
 
-function advread(x, y, len, backclr, textclr, text, cursor)
+local advread = function(x, y, len, backclr, textclr, text, cursor)
 local running = true
 local cfg = {
 ["pos"] = 1;
@@ -369,7 +369,7 @@ term.setCursorBlink(true)
   end
 end
 
-function writeLine(txt, clr)
+local writeLine = function(txt, clr)
 local words = {
 ["function"] = scm.fun;
 ["if"] = scm.fun;
@@ -440,7 +440,7 @@ term.setCursorPos(oldx, oldy)
   end
 end
 
-function callprog(args)
+local callprog = function(args)
 local ok, err
 term.setBackgroundColor(32768)
 term.clear()
@@ -489,7 +489,7 @@ local func, errload = loadfile(prg.fl.sys..prg.fl.dmp..prg.filename..".dmp")
   end
 end
 
-function barTop()
+local barTop = function()
 local menu = {
 {"file", "File"};
 {"line", "Line"};
@@ -516,7 +516,7 @@ term.clearLine()
 prg.offtop = ypos
 end
 
-function barBot()
+local barBot = function()
 term.setCursorPos(1, Y)
 term.setBackgroundColor(scm.barbot)
 term.setTextColor(scm.txt)
@@ -533,7 +533,7 @@ prg.lastev = tostring(prg.lastev)
   end
 end
 
-function printLines()
+local printLines = function()
 term.setBackgroundColor(scm.back)
   for i = prg.offtop+1, Y-1 do
   term.setCursorPos(1, i)
@@ -560,13 +560,13 @@ term.setBackgroundColor(scm.back)
   end
 end
 
-function printAll()
+local printAll = function()
 barTop()
 barBot()
 printLines()
 end
 
-function setCursor(x1, y1)
+local setCursor = function(x1, y1)
   if y1 then
     if y1 ~= prg.line+prg.linepos-1 or y1 > #prg.file then
       if y1 >= 1 then
@@ -605,11 +605,11 @@ function setCursor(x1, y1)
   end
 end
 
-function insert(text)
+local insert = function(text)
 prg.file[prg.line+prg.linepos-1] = string.sub(prg.file[prg.line+prg.linepos-1], 1, prg.pos+prg.cursor-2)..text..string.sub(prg.file[prg.line+prg.linepos-1], prg.pos+prg.cursor-1)
 end
 
-function startUI()
+local startUI = function()
 local x = math.floor(X/2)+1
 local y = math.floor((Y+4)/2)+1
 local run = true
@@ -705,7 +705,7 @@ mainMenu()
 prg.buttons = {}
 end
 
-function loadCFG(path)
+local loadCFG = function(path)
   local cfg = getTable(path)
   local new = {}
     for j = 1, #cfg do
@@ -724,7 +724,7 @@ function loadCFG(path)
   return new
   end
 
-function writeCFG(cfg, path)
+local writeCFG = function(cfg, path)
 local new = {}
   for i, v in pairs(cfg) do
   table.insert(new, i..":"..v)
@@ -732,7 +732,7 @@ local new = {}
 fwrite(new, path)
 end
 
-function initUI()
+local initUI = function()
   if fs.exists(prg.fl.sys..prg.fl.cfg) then
   local cfg = loadCFG(prg.fl.sys..prg.fl.cfg)
     for i, v in pairs(cfg) do
@@ -780,7 +780,7 @@ function initUI()
   end
 end
 
-function fileMenu()
+local fileMenu = function()
 term.setCursorBlink(false)
 local run = true
 local menu = {
@@ -795,9 +795,10 @@ dropDown(menu, "file")
   while run do
   local e = {os.pullEvent()}
     if e[1] == "mouse_click" and e[2] == 1 then
-      if checkButton(e[3], e[4]) == "file" then
+    local check = checkButton(e[3], e[4])
+      if check == "file" then
       run = false
-      elseif checkButton(e[3], e[4]) == "i" then
+      elseif check == "i" then
       local len = 0
       local size = 0
       local lines
@@ -824,15 +825,15 @@ dropDown(menu, "file")
       }
       popUp(txt)
       run = false
-      elseif checkButton(e[3], e[4]) == "s" then
+      elseif check == "s" then
       fwrite(prg.file, prg.filename, true)
       run = false
-      elseif checkButton(e[3], e[4]) == "s&e" then
+      elseif check == "s&e" then
       fwrite(prg.file, prg.filename)
       autosave("del")
       run = false
       running = false
-      elseif checkButton(e[3], e[4]) == "pb" then
+      elseif check == "pb" then
         if http then
         local txt = ""
           for i = 1, #prg.file do
@@ -862,7 +863,7 @@ dropDown(menu, "file")
           end
         end
       run = false
-      elseif checkButton(e[3], e[4]) == "e" then
+      elseif check == "e" then
       autosave("del")
       run = false
       running = false
@@ -882,7 +883,7 @@ printAll()
 term.setCursorBlink(true)
 end
 
-function lineMenu()
+local lineMenu = function()
 term.setCursorBlink(false)
 local run = true
 local menu = {
@@ -895,17 +896,18 @@ dropDown(menu, "line")
   while run do
   local e = {os.pullEvent()}
     if e[1] == "mouse_click" and e[2] == 1 then
-      if checkButton(e[3], e[4]) == "line" then
+    local check = checkButton(e[3], e[4])
+      if check == "line" then
       run = false
-      elseif checkButton(e[3], e[4]) == "cp" then
+      elseif check == "cp" then
       prg.buffer = prg.file[prg.line+prg.linepos-1]
       run = false
-      elseif checkButton(e[3], e[4]) == "ct" then
+      elseif check == "ct" then
       prg.buffer = prg.file[prg.line+prg.linepos-1]
       prg.file[prg.line+prg.linepos-1] = ""
       setCursor(1)
       run = false
-      elseif checkButton(e[3], e[4]) == "pt" then
+      elseif check == "pt" then
       prg.file[prg.line+prg.linepos-1] = string.sub(prg.file[prg.line+prg.linepos-1], 1, prg.pos+prg.cursor-2)..prg.buffer..string.sub(prg.file[prg.line+prg.linepos-1], prg.pos+prg.cursor-1)
       setCursor(prg.pos+prg.cursor-1+#prg.buffer)
       run = false
@@ -925,7 +927,7 @@ printAll()
 term.setCursorBlink(true)
 end
 
-function actionsMenu()
+local actionsMenu = function()
 term.setCursorBlink(false)
 local run = true
 local menu = {
@@ -940,12 +942,13 @@ dropDown(menu, "actions")
   while run do
   local e = {os.pullEvent()}
     if e[1] == "mouse_click" and e[2] == 1 then
-      if checkButton(e[3], e[4]) == "actions" then
+    local check = checkButton(e[3], e[4])
+      if check == "actions" then
       run = false
-      elseif checkButton(e[3], e[4]) == "g1" then
+      elseif check == "g1" then
       setCursor(1, 1)
       run = false
-      elseif checkButton(e[3], e[4]) == "gp" then
+      elseif check == "gp" then
       local num = tonumber(advread(prg.buttons["actions"][1]-1, prg.buttons["actions"][4]+3, prg.buttons["actions"][3]-prg.buttons["actions"][1]+5, scm.menu, scm.txt))
         if num then
           if num < 1 then
@@ -957,14 +960,14 @@ dropDown(menu, "actions")
           end
         end
       run = false
-      elseif checkButton(e[3], e[4]) == "ge" then
+      elseif check == "ge" then
       setCursor(1, #prg.file)
       run = false
-      elseif checkButton(e[3], e[4]) == "r" then
+      elseif check == "r" then
       autosave("sv")
       callprog()
       run = false
-      elseif checkButton(e[3], e[4]) == "rw" then
+      elseif check == "rw" then
       local x = math.floor(X/2)+1
       local y = math.floor((Y+prg.offtop-prg.offbot)/2)+1
       makeField(x-13, y-3, x+13, y+3, scm.popupback)
@@ -992,7 +995,7 @@ printAll()
 term.setCursorBlink(true)
 end
 
-function optionsMenu()
+local optionsMenu = function()
 local schemes = {}
 local y = math.floor((Y+prg.offtop-prg.offbot)/2)+1
 local x = math.floor(X/2)+1
@@ -1023,16 +1026,17 @@ dropDown(menu, "options")
   while run do
   e = {os.pullEvent()}
     if e[1] == "mouse_click" and e[2] == 1 then
-      if checkButton(e[3], e[4]) == "options" then
+    local check = checkButton(e[3], e[4])
+      if check == "options" then
       run = false
-      elseif checkButton(e[3], e[4]) == "ab" then
+      elseif check == "ab" then
       local txt = {
       "luaedit v"..prg.version;
       "written by wieselkatze"
       }
       popUp(txt)
       run = false
-      elseif checkButton(e[3], e[4]) == "ss" then
+      elseif check == "ss" then
       makeField(x-9, y-6, x+9, y+6, scm.popupback)
       schemes = fs.list(prg.fl.sys..prg.fl.scm)
       local cfg = loadCFG(prg.fl.sys..prg.fl.cfg)
@@ -1117,7 +1121,7 @@ X, Y = term.getSize()
 
 
 -- MAIN LOOP --
-function main()
+local main = function()
 printAll()
 term.setCursorBlink(true)
   while running do
@@ -1197,13 +1201,14 @@ term.setCursorBlink(true)
       setCursor(#ins+1, prg.line+prg.linepos)
       end
     elseif e[1] == "mouse_click" and e[2] == 1 then
-      if checkButton(e[3], e[4]) == "file" then
+    local check = checkButton(e[3], e[4])
+      if check == "file" then
       fileMenu()
-      elseif checkButton(e[3], e[4]) == "line" then
+      elseif check == "line" then
       lineMenu()
-      elseif checkButton(e[3], e[4]) == "actions" then
+      elseif check == "actions" then
       actionsMenu()
-      elseif checkButton(e[3], e[4]) == "options" then
+      elseif check == "options" then
       optionsMenu()
       elseif e[4] > prg.offtop and e[4] <= Y-prg.offbot then
         if e[4]+prg.line-prg.offtop-1 <= #prg.file then
@@ -1248,7 +1253,7 @@ end
 
 -- ERROR CATCHING --
 if running then
-_, err = pcall(main)
+local _, err = pcall(main)
 term.setCursorBlink(false)
   if err then
   term.setBackgroundColor(scm.errback)
