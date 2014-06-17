@@ -94,7 +94,7 @@ string.match(file, ".+\\")
       f:write(tostring(v).."\n")
       end
       if msg then
-      prg.lastev = "Saved to "..file
+      prg.lastev = "Saved to "..string.match(file, "[^/]+$")
       end
     else
       if msg then
@@ -1233,8 +1233,8 @@ term.setCursorBlink(true)
           prg.linepos = prg.linepos + 1
           end
         setCursor(math.min(#prg.file[prg.line+prg.linepos-1]+1, prg.pos+prg.cursor-1))
+        printLines()
         end
-      printLines()
       else
         if prg.line+Y-prg.offtop-prg.offbot <= #prg.file then
         prg.line = prg.line + 1
@@ -1242,8 +1242,8 @@ term.setCursorBlink(true)
           prg.linepos = prg.linepos - 1
           end
         setCursor(math.min(#prg.file[prg.line+prg.linepos-1]+1, prg.pos+prg.cursor-1))
+        printLines()
         end
-      printLines()
       end
     elseif e[1] == "timer" then
       if e[2] == prg.evhandle.autosv then
