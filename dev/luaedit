@@ -440,55 +440,6 @@ term.setCursorPos(oldx, oldy)
   end
 end
 
-local callprog = function(args)
-local ok, err
-term.setBackgroundColor(32768)
-term.clear()
-term.setCursorPos(1, 1)
-local func, errload = loadfile(prg.fl.sys..prg.fl.dmp..prg.filename..".dmp")
-  if func then
-    if args then
-    local arg = {}
-    for m in string.gmatch(args, "[^ \t]+") do
-    arg[#arg + 1] = m:gsub("^%s*(.-)%s*$", "%1")
-    end
-    parallel.waitForAny(function() ok, err = pcall(func, unpack(arg)) end,
-    function()
-      while true do
-      _, id = os.pullEvent("timer")
-        if id == prg.evhandle.autosv then
-        prg.evhandle.autosv = os.startTimer(prg.autosv)
-        end
-      end
-    end)
-    else
-    parallel.waitForAny(function() ok, err = pcall(func) end, 
-    function()
-      while true do
-      _, id = os.pullEvent("timer")
-        if id == prg.evhandle.autosv then
-        prg.evhandle.autosv = os.startTimer(prg.autosv)
-        end
-      end
-    end)
-    end
-  else
-  err = errload
-  end
-  if not ok then
-  local txt = {
-  "Your program has crashed!";
-  "The error code is";
-  err
-  }
-  popUp(txt)
-  else
-  print("Click anywhere to return to luaedit")
-  os.pullEvent("mouse_click")
-  printAll()
-  end
-end
-
 local barTop = function()
 local menu = {
 {"file", "File"};
@@ -564,6 +515,55 @@ local printAll = function()
 barTop()
 barBot()
 printLines()
+end
+
+local callprog = function(args)
+local ok, err
+term.setBackgroundColor(32768)
+term.clear()
+term.setCursorPos(1, 1)
+local func, errload = loadfile(prg.fl.sys..prg.fl.dmp..prg.filename..".dmp")
+  if func then
+    if args then
+    local arg = {}
+    for m in string.gmatch(args, "[^ \t]+") do
+    arg[#arg + 1] = m:gsub("^%s*(.-)%s*$", "%1")
+    end
+    parallel.waitForAny(function() ok, err = pcall(func, unpack(arg)) end,
+    function()
+      while true do
+      _, id = os.pullEvent("timer")
+        if id == prg.evhandle.autosv then
+        prg.evhandle.autosv = os.startTimer(prg.autosv)
+        end
+      end
+    end)
+    else
+    parallel.waitForAny(function() ok, err = pcall(func) end, 
+    function()
+      while true do
+      _, id = os.pullEvent("timer")
+        if id == prg.evhandle.autosv then
+        prg.evhandle.autosv = os.startTimer(prg.autosv)
+        end
+      end
+    end)
+    end
+  else
+  err = errload
+  end
+  if not ok then
+  local txt = {
+  "Your program has crashed!";
+  "The error code is";
+  err
+  }
+  popUp(txt)
+  else
+  print("Click anywhere to return to luaedit")
+  os.pullEvent("mouse_click")
+  printAll()
+  end
 end
 
 local setCursor = function(x1, y1)
@@ -644,8 +644,8 @@ mainMenu()
       write("/")
       local path = advread(x-9, y, 20, scm.popupback, scm.txt)
         if #path > 0 then
-        prg.filename = path
-        prg.file = getTable(path)
+        prg.filename = "/"..path
+        prg.file = getTable("/"..path)
         running = true
         run = false
         else
@@ -1110,12 +1110,20 @@ end
 
 
 -- INITIALIZE --
-X, Y = term.getSize() 
+X, Y = term.getSize()
+local tArgs = {...}
   if term.isColor() then
-  startUI()
-  initUI()
+    if tArgs[1] and #shell.resolve(tArgs[1]) > 0 then
+      prg.filename = "/"..shell.resolve(tArgs[1])
+      prg.file = getTable("/"..shell.resolve(tArgs[1]))
+      initUI()
+      running = true
+    else
+      startUI()
+      initUI()
+    end
   else
-  print("Sorry, this program is only for advanced computers")
+    print("Sorry, this program is only for advanced computers")
   end
 -- INITIALIZE END --
 
